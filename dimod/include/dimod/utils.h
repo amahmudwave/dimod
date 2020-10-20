@@ -33,7 +33,7 @@ bool comp_v(std::pair<V, B> ub, V v) {
 
 // Allocate memory and make sure the returned pointer address
 // is a multiple of the given alignment
-void* aligned_malloc(size_t required_bytes, size_t alignment = 0) {
+inline void* aligned_malloc(size_t required_bytes, size_t alignment = 0) {
     if (!alignment) {
         alignment = CACHE_LINE_SIZE;
     }
@@ -51,11 +51,11 @@ void* aligned_malloc(size_t required_bytes, size_t alignment = 0) {
 }
 
 // Corresponding aligned free for the aligned malloc
-void aligned_free(void* p) { free(((void**)p)[-1]); }
+inline void aligned_free(void* p) { free(((void**)p)[-1]); }
 
 // Allocate memory and fill it with zeroes but also make sure
 // the returned address is a multiple of the given alignment
-void* aligned_calloc(size_t num, size_t size, size_t alignment = 0) {
+inline void* aligned_calloc(size_t num, size_t size, size_t alignment = 0) {
     if (!alignment) {
         alignment = CACHE_LINE_SIZE;
     }

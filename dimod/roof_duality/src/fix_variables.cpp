@@ -1292,6 +1292,4 @@ std::vector<std::pair<int,  int> > fixQuboVariablesMap(std::map<std::pair<int, i
 
     return ret.fixedVars;
 }
-
-
 } // namespace fix_variables_

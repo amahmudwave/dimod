@@ -27,7 +27,8 @@
 #include <vector>
 #include <map>
 #include <string>
-
+#include <iostream>
+using namespace std;
 /**
 * \namespace sapi
 * \brief Namespace for compressed matrix.
@@ -386,6 +387,7 @@ compressed_matrix::CompressedMatrix<T>::CompressedMatrix(int numRows, int numCol
 template <typename T>
 compressed_matrix::CompressedMatrix<T>::CompressedMatrix(int numRows, int numCols, const std::map<std::pair<int, int>, T>& m) : numRows_(numRows), numCols_(numCols)
 {
+	cout << "Starting map to matrix conversion " <<endl;
 	int offset = 0;
 	int currRow = 0;
 	rowOffsets_.resize(numRows_ + 1);
@@ -393,7 +395,7 @@ compressed_matrix::CompressedMatrix<T>::CompressedMatrix(int numRows, int numCol
 	{
 		if (it->first.first >= numRows_ || it->first.second >= numCols_)
 			throw CompressedMatrixException("map contains invalid index for compressed matrix constructor.");
-
+                cout << it->first.first << " " << it->first.second << " " << it->second << endl;
 		if (currRow <= it->first.first)
 		{
 			for (int i = currRow; i <= it->first.first; i++)
@@ -407,6 +409,8 @@ compressed_matrix::CompressedMatrix<T>::CompressedMatrix(int numRows, int numCol
 	}
 	for (int i = currRow; i < rowOffsets_.size(); i++)
 		rowOffsets_[i] = offset;
+
+	cout << "Ending map to matrix conversion " <<endl;
 }
 
 template <typename T>

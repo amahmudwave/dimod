@@ -22,12 +22,19 @@ from libcpp.map cimport map
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
 
+from dimod.bqm.cppbqm cimport AdjVectorBQM as cppAdjVectorBQM
+from dimod cimport cyAdjVectorBQM
+from dimod import AdjVectorBQM
+from dimod.discrete.cydiscrete_quadratic_model cimport cyDiscreteQuadraticModel, Bias, CaseIndex, VarIndex
 from dimod.vartypes import Vartype
 
 cdef extern from "fix_variables.hpp" namespace "fix_variables_":
     vector[pair[int, int]] fixQuboVariablesMap(map[pair[int, int], double] QMap,
                                                int QSize, int method) except +
 
+cdef extern from "fix_variables.hpp" namespace "fix_variables_":
+    vector[pair[int, int]] fixQuboVariables[V, B](cppAdjVectorBQM[V, B]& refBQM,
+                                            int method) except +
 
 def fix_variables_wrapper(bqm, method):
     """bqm should be binary and linear indexed
@@ -53,5 +60,7 @@ def fix_variables_wrapper(bqm, method):
         QMap[pair[int, int](v, v)] = bias
 
     fixed = fixQuboVariablesMap(QMap, len(bqm), int(method))
+    cdef cyAdjVectorBQM cvbqm = bqm
+    fixed_2 = fixQuboVariables[VarIndex, Bias](cvbqm.bqm_, int(method));
 
     return {int(v - 1): int(val) for v, val in fixed}
