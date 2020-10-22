@@ -21,6 +21,7 @@
 from libcpp.map cimport map
 from libcpp.utility cimport pair
 from libcpp.vector cimport vector
+import time
 
 from dimod.bqm.cppbqm cimport AdjVectorBQM as cppAdjVectorBQM
 from dimod cimport cyAdjVectorBQM
@@ -32,7 +33,6 @@ cdef extern from "fix_variables.hpp" namespace "fix_variables_":
     vector[pair[int, int]] fixQuboVariablesMap(map[pair[int, int], double] QMap,
                                                int QSize, int method) except +
 
-cdef extern from "fix_variables.hpp" namespace "fix_variables_":
     vector[pair[int, int]] fixQuboVariables[V, B](cppAdjVectorBQM[V, B]& refBQM,
                                             int method) except +
 
@@ -53,6 +53,7 @@ def fix_variables_wrapper(bqm, method):
     if method < 1 or method > 2:
         raise ValueError("method should 1 or 2")
 
+    t0 = time.perf_counter()
     cdef map[pair[int, int], double] QMap
     for (u, v), bias in bqm.quadratic.items():
         QMap[pair[int, int](u, v)] = bias
@@ -60,7 +61,9 @@ def fix_variables_wrapper(bqm, method):
         QMap[pair[int, int](v, v)] = bias
 
     fixed = fixQuboVariablesMap(QMap, len(bqm), int(method))
+    t1 = time.perf_counter()
     cdef cyAdjVectorBQM cvbqm = bqm
     fixed_2 = fixQuboVariables[VarIndex, Bias](cvbqm.bqm_, int(method));
-
+    t2 = time.perf_counter()
+    print(t0,"  ",t1,"  ",t2)
     return {int(v - 1): int(val) for v, val in fixed}

@@ -128,8 +128,7 @@ exec(open(os.path.join(bqmdir, "make.py")).read(), namespace)
 namespace['make_bqms'](bqmdir)
 
 extensions = [Extension("dimod.roof_duality._fix_variables",
-                        ['dimod/roof_duality/_fix_variables'+ext,
-                         'dimod/roof_duality/src/fix_variables.cpp'],
+                        ['dimod/roof_duality/_fix_variables'+ext],
                         include_dirs=['dimod/roof_duality/src/']),
               Extension("dimod.bqm.adjmapbqm",
                         ['dimod/bqm/adjmapbqm'+ext]),
