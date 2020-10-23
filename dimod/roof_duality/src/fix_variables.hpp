@@ -126,61 +126,71 @@ class PosiformInfo {
 		using t_quadIter = typename BQM::const_outvars_iterator;
 		PosiformInfo(const BQM& bqm) {
 			numVars = bqm.num_variables();
-			quadratic.resize(numVars);
-			linear.resize(numVars);
+			quadraticIterators.resize(numVars);
+			linear.resize(numVars, 0);
 			countNegInRow.resize(numVars,0);
 			countNegInCol.resize(numVars,0);
 			maxAbsValue = 0;
+			cnst = 0;
 			for(int i = 0; i < numVars; i++) {
-				linear[i] = bqm.linear(i);
 				if(maxAbsValue < std::fabs(bqm.linear(i))) {
 					maxAbsValue = std::fabs(bqm.linear(i));
 				}
 				auto span = bqm.neighborhood(i);
 				auto it = std::lower_bound(span.first, span.second, i+1,
 						dimod::utils::comp_v<variable_type, bias_type>);
-				quadratic[i] = {it, span.second};
+				quadraticIterators[i] = {it, span.second};
 				for(auto itEnd = span.second; it != itEnd; it++) {
 					if(maxAbsValue < std::fabs(it->second)) {
 						maxAbsValue = std::fabs(it->second);
 					}
 				}
 			}
+
+
 			if (maxAbsValue != 0)
 				ratio = static_cast<double>(std::numeric_limits<long long int>::max()) / maxAbsValue;
 			ratio /= static_cast<double>(1LL << 10);
 			if (ratio < 1)
 				ratio = 1;
 
-			// TODO: This may be redundant, may remove eventually.
+			// TODO Ideally we will take a second pass to find maxAbsValue
+			// considering the array of linears. And then recalculate linears
+			// and the constant. 
 			for(int i = 0; i < numVars; i++){
-			        auto it = quadratic[i].first;
-				auto itEnd = quadratic[i].second;
+				linear[i] = convertToLL(bqm.linear(i));
+			        auto it = quadraticIterators[i].first;
+				auto itEnd = quadraticIterators[i].second;
 				for(; it != itEnd; it++) {
-					auto biasQuad = it->second;
-					if( convertToLL(biasQuad) < 0) {
-						linear[i]+= biasQuad;
+					auto biasQuadLL = convertToLL(it->second);
+					if( biasQuadLL < 0) {
+						linear[i]+= biasQuadLL;
    					  	countNegInRow[i]++;
 						countNegInCol[it->first]++;
 					}
 				}
 			}
+			
+			for(int i = 0; i < linear.size(); i++){
+			       if(linear[i] < 0) cnst += linear[i];
+			}
 		}
 
 		void print() {
+			std::cout <<"Posiform Information : " << numVars << endl;
 			std::cout <<"Num Variables : " << numVars << endl;
 			std::cout <<"Constant : " << cnst << std::endl;
-			std::cout <<"maxAbsValue : " << cnst << std::endl;
+			std::cout <<"maxAbsValue : " << maxAbsValue << std::endl;
 			std::cout << "Linear : " << std::endl;
 			for(int i =0; i < numVars; i++) {
-				if(convertToLL(linear[i]))
-					std::cout << i <<" " << convertToLL(linear[i]) << std::endl;
+				if(linear[i])
+					std::cout << i <<" " << linear[i] << std::endl;
 		        }
 
 			std::cout << "Quadratic : " << std::endl;
 			for(int i =0; i < numVars; i++) {
-	         		auto it = quadratic[i].first;
-				auto itEnd = quadratic[i].second;
+	         		auto it = quadraticIterators[i].first;
+				auto itEnd = quadraticIterators[i].second;
 				for(; it != itEnd; it++){
 					std::cout << i << " " << it->first <<" " << convertToLL(it->second) << std::endl;
 				}
@@ -191,8 +201,8 @@ class PosiformInfo {
 	           return static_cast<long long int>(bias * ratio);
 		}
 
-		std::vector<std::pair<t_quadIter,t_quadIter>> quadratic;
-		std::vector<bias_type> linear;
+		std::vector<std::pair<t_quadIter,t_quadIter>> quadraticIterators;
+		std::vector<long long int> linear;
 		std::vector<int> countNegInRow;
 		std::vector<int> countNegInCol;
 		long long int cnst;
