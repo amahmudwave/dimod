@@ -80,125 +80,37 @@ struct Posiform
 	int numVars;
 };
 
-void printPosiform(Posiform& pos) {
-    
-     std::cout <<"Num Variables : " << pos.numVars << endl;
-     std::cout <<"Constant : " << pos.cst << std::endl;
-     std::cout <<"Linear : " << std::endl;
-     for(size_t i = 0 ; i < pos.linear.size(); i++) {
-	     std::cout << pos.linear[i].first <<" " 
-                       << pos.linear[i].second << std::endl;
-     }
-     std::cout <<"Quadratic : " << std::endl;
-     for(size_t i = 0 ; i < pos.quadratic.size(); i++) {
-	     std::cout << pos.quadratic[i].first.first <<" " 
-		       << pos.quadratic[i].first.second <<" "
-		       << pos.quadratic[i].second << std::endl;
-     }
-}
-
-//
-//template <class IterInternal, class T>
-//class LLit {
-//  LLit(IterInternal internal, double ratio) _internal(internal), _ratio(ratio)
-//  {
-//     
-//  }
-//
-//  void operator++() { _internal++; };
-//  T  
-//  private:
-//    IterInternal _internal;
-//    double _ratio;
-//};
-
-
-// This class should contain all the information to recreate
-// a posiform corresponding to a BQM. The intention is to reduce
-// the memory footprint as much as possible. All bias values
-// must be multiplied by the ratio before using. Not storing
-// the results to avoid extra O(N^2) storage.
 template <class BQM>
 class PosiformInfo {
-	public: 
-		using bias_type = typename BQM::bias_type;
-		using variable_type = typename BQM::variable_type;
-		using t_quadIter = typename BQM::const_outvars_iterator;
-		PosiformInfo(const BQM& bqm) {
-			numVars = bqm.num_variables();
-			quadratic.resize(numVars);
-			linear.resize(numVars);
-			countNegInRow.resize(numVars,0);
-			countNegInCol.resize(numVars,0);
-			maxAbsValue = 0;
-			for(int i = 0; i < numVars; i++) {
-				linear[i] = bqm.linear(i);
-				if(maxAbsValue < std::fabs(bqm.linear(i))) {
-					maxAbsValue = std::fabs(bqm.linear(i));
-				}
-				auto span = bqm.neighborhood(i);
-				auto it = std::lower_bound(span.first, span.second, i+1,
-						dimod::utils::comp_v<variable_type, bias_type>);
-				quadratic[i] = {it, span.second};
-				for(auto itEnd = span.second; it != itEnd; it++) {
-					if(maxAbsValue < std::fabs(it->second)) {
-						maxAbsValue = std::fabs(it->second);
-					}
-				}
-			}
-			if (maxAbsValue != 0)
-				ratio = static_cast<double>(std::numeric_limits<long long int>::max()) / maxAbsValue;
-			ratio /= static_cast<double>(1LL << 10);
-			if (ratio < 1)
-				ratio = 1;
+  public: 
+      using bias_type = typename BQM::bias_type;
+      using variable_type = typename BQM::variable_type;
+      using t_quadIter = typename BQM::const_outvars_iterator;
+	  PosiformInfo(const BQM& bqm) {
+           numVars = bqm.num_variables();
+	   quadratic.reserve(numVars);
+	   linear.reserve(numVars);
+           for(int i = 0; i < numVars; i++){
+                linear[i] = bqm.linear(i);
+         	auto span = bqm.neighborhood(i);
+                auto it = std::lower_bound(span.first, span.second, i+1,
+     	                                   dimod::utils::comp_v<variable_type, bias_type>);
+	        quadratic[i].first = it;
+		quadratic[i].second = span.second;
+           }
+	   
+	   for(int i =0; i < numVars; i++) {
+             std::cout << "Linear " << i << linear[i] << std::endl;
+             for(auto itSt = quadratic[i].first, itEnd = quadratic[i].second; itSt != itEnd; itSt++){
+		     std::cout << itSt->first <<" " << itSt->second << std::endl;
+	     }
+	   }  
+	 }
 
-			// TODO: This may be redundant, may remove eventually.
-			for(int i = 0; i < numVars; i++){
-			        auto it = quadratic[i].first;
-				auto itEnd = quadratic[i].second;
-				for(; it != itEnd; it++) {
-					auto biasQuad = it->second;
-					if( convertToLL(biasQuad) < 0) {
-						linear[i]+= biasQuad;
-   					  	countNegInRow[i]++;
-						countNegInCol[it->first]++;
-					}
-				}
-			}
-		}
-
-		void print() {
-			std::cout <<"Num Variables : " << numVars << endl;
-			std::cout <<"Constant : " << cnst << std::endl;
-			std::cout <<"maxAbsValue : " << cnst << std::endl;
-			std::cout << "Linear : " << std::endl;
-			for(int i =0; i < numVars; i++) {
-				if(convertToLL(linear[i]))
-					std::cout << i <<" " << convertToLL(linear[i]) << std::endl;
-		        }
-
-			std::cout << "Quadratic : " << std::endl;
-			for(int i =0; i < numVars; i++) {
-	         		auto it = quadratic[i].first;
-				auto itEnd = quadratic[i].second;
-				for(; it != itEnd; it++){
-					std::cout << i << " " << it->first <<" " << convertToLL(it->second) << std::endl;
-				}
-			}  
-		}
-
-		inline long long int convertToLL(bias_type bias) {
-	           return static_cast<long long int>(bias * ratio);
-		}
-
-		std::vector<std::pair<t_quadIter,t_quadIter>> quadratic;
-		std::vector<bias_type> linear;
-		std::vector<int> countNegInRow;
-		std::vector<int> countNegInCol;
-		long long int cnst;
-		double maxAbsValue;
-		double ratio;
-		int numVars;
+          std::vector<std::pair< typename BQM::const_outvars_iterator, typename BQM::const_outvars_iterator>> quadratic;
+	  std::vector<long long int> linear;
+	  long long int cnst;
+	  int numVars;
 };
 
 struct SC
@@ -1301,9 +1213,6 @@ struct FixVariablesResult
 
 FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<double>& Q, int method)
 {
-	static int di=0;
-        printf("Starting function %d  ******\n", ++di);
-
 	//Q needs to be a square matrix
 	if (Q.numRows() != Q.numCols())
         throw std::invalid_argument("Q's size is not correct.");
@@ -1349,8 +1258,6 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 	if (!uTriQ.values().empty())
 		maxAbsValue = std::fabs(*std::max_element(uTriQ.values().begin(), uTriQ.values().end(), compareAbs));
 
-	std::cout << "Max abs value " << maxAbsValue << std::endl;
-
 	double ratio = 1;
 
 	if (maxAbsValue != 0)
@@ -1367,12 +1274,14 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 		uTriQMapLLI[it->first] = static_cast<long long int>(it->second * ratio);
 
 	compressed_matrix::CompressedMatrix<long long int> uTriQLLI(numVariables, numVariables, uTriQMapLLI);
+	static int di=0;
+        printf("Starting function %d  ******\n", ++di);
 	curr_2 = clock();
 	printf("Time elapsed_make upper triangular: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	curr_1 = curr_2;
 
 	Posiform p = BQPToPosiform(uTriQLLI);
-	printPosiform(p);
+
 	curr_2 = clock();
 	printf("Time elapsed_BQPToPosiform: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	curr_1 = curr_2;
@@ -1485,7 +1394,6 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
       }
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
-     pi.print();
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
 }
