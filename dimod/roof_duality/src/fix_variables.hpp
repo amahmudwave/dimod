@@ -31,6 +31,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <unordered_map>
 #include <queue>
 #include <set>
 #include <stdexcept>
@@ -130,6 +131,8 @@ class PosiformInfo {
 			linear.resize(numVars, 0);
 			countNegInRow.resize(numVars,0);
 			countNegInCol.resize(numVars,0);
+			std::vector<bool> variableUsed(numVars, false);
+			
 			maxAbsValue = 0;
 			cnst = 0;
 			for(int i = 0; i < numVars; i++) {
@@ -140,9 +143,13 @@ class PosiformInfo {
 				auto it = std::lower_bound(span.first, span.second, i+1,
 						dimod::utils::comp_v<variable_type, bias_type>);
 				quadraticIterators[i] = {it, span.second};
-				for(auto itEnd = span.second; it != itEnd; it++) {
-					if(maxAbsValue < std::fabs(it->second)) {
-						maxAbsValue = std::fabs(it->second);
+				if(it != span.second) {
+					variableUsed[i] = true;
+					for(auto itEnd = span.second; it != itEnd; it++) {
+						variableUsed[it->first] = true;
+						if(maxAbsValue < std::fabs(it->second)) {
+							maxAbsValue = std::fabs(it->second);
+						}
 					}
 				}
 			}
@@ -172,8 +179,21 @@ class PosiformInfo {
 			}
 			
 			for(int i = 0; i < linear.size(); i++){
+			       if(linear[i] != 0) variableUsed[i] = true;
 			       if(linear[i] < 0) cnst += linear[i];
 			}
+			
+			usedVariables.reserve(numVars);
+			numUsedVars = 0;
+			for(int i = 0; i < numVars; i++) {
+				if(variableUsed[i]) {
+					usedVariables.push_back(i);
+					variableMap.insert({i, numUsedVars});
+					numUsedVars++;
+				}
+			}
+			assert(numUsedVars != usedVariables.size());
+
 		}
 
 		void print() {
@@ -195,6 +215,12 @@ class PosiformInfo {
 					std::cout << i << " " << it->first <<" " << convertToLL(it->second) << std::endl;
 				}
 			}  
+		
+			std::cout << "Used Variables :" << usedVariables.size() <<  std::endl;
+			for(int i = 0; i < usedVariables.size(); i++) {
+				std::cout << usedVariables[i] << " --> " << variableMap[usedVariables[i]] << std::endl;
+			}
+
 		}
 
 		inline long long int convertToLL(bias_type bias) {
@@ -205,10 +231,13 @@ class PosiformInfo {
 		std::vector<long long int> linear;
 		std::vector<int> countNegInRow;
 		std::vector<int> countNegInCol;
+		std::vector<int> usedVariables;
+		std::unordered_map<int, int> variableMap;
 		long long int cnst;
 		double maxAbsValue;
 		double ratio;
 		int numVars;
+		int numUsedVars;
 };
 
 struct SC
