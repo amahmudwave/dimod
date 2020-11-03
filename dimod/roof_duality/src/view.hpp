@@ -31,6 +31,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <unordered_map>
 #include <queue>
 #include <set>
 #include <stdexcept>
@@ -130,6 +131,8 @@ class PosiformInfo {
 			linear.resize(numVars, 0);
 			countNegInRow.resize(numVars,0);
 			countNegInCol.resize(numVars,0);
+			std::vector<bool> variableUsed(numVars, false);
+			
 			maxAbsValue = 0;
 			cnst = 0;
 			for(int i = 0; i < numVars; i++) {
@@ -140,9 +143,11 @@ class PosiformInfo {
 				auto it = std::lower_bound(span.first, span.second, i+1,
 						dimod::utils::comp_v<variable_type, bias_type>);
 				quadraticIterators[i] = {it, span.second};
-				for(auto itEnd = span.second; it != itEnd; it++) {
-					if(maxAbsValue < std::fabs(it->second)) {
-						maxAbsValue = std::fabs(it->second);
+				if(it != span.second) {
+					for(auto itEnd = span.second; it != itEnd; it++) {
+						if(maxAbsValue < std::fabs(it->second)) {
+							maxAbsValue = std::fabs(it->second);
+						}
 					}
 				}
 			}
@@ -162,18 +167,38 @@ class PosiformInfo {
 			        auto it = quadraticIterators[i].first;
 				auto itEnd = quadraticIterators[i].second;
 				for(; it != itEnd; it++) {
+					int numBiasesInUpperTriangle = 0;
 					auto biasQuadLL = convertToLL(it->second);
 					if( biasQuadLL < 0) {
 						linear[i]+= biasQuadLL;
    					  	countNegInRow[i]++;
 						countNegInCol[it->first]++;
 					}
+					if( biasQuadLL ) {
+						numBiasesInUpperTriangle++;
+						variableUsed[i] = true;
+						variableUsed[it->first] = true;
+					}
 				}
+				numQuadratic[i] = numBiasesInUpperTriangle;
 			}
 			
 			for(int i = 0; i < linear.size(); i++){
+			       if(linear[i] != 0) variableUsed[i] = true;
 			       if(linear[i] < 0) cnst += linear[i];
 			}
+			
+			usedVariables.reserve(numVars);
+			numUsedVars = 0;
+			for(int i = 0; i < numVars; i++) {
+				if(variableUsed[i]) {
+					usedVariables.push_back(i);
+					variableMap.insert({i, numUsedVars});
+					numUsedVars++;
+				}
+			}
+			assert(numUsedVars != usedVariables.size());
+
 		}
 
 		void print() {
@@ -195,22 +220,75 @@ class PosiformInfo {
 					std::cout << i << " " << it->first <<" " << convertToLL(it->second) << std::endl;
 				}
 			}  
+		
+			std::cout << "Used Variables :" << usedVariables.size() <<  std::endl;
+			for(int i = 0; i < usedVariables.size(); i++) {
+				std::cout << usedVariables[i] << " --> " << variableMap[usedVariables[i]] << std::endl;
+			}
+
+		}
+
+		inline int getNumVariables() { return numUsedVars; }
+		inline long long int getLinear(int i) { return linear[variableMap[i]]; }
+		inline getNumQuadratic(int i) { return countRowElem[variableMap[i]]; }
+		inline getNumNegInRow(int i) { return countNumNegInRow[variableMap[i]]; }
+		inline getNumNegInCol(int i) { return countNumNegInCol[variableMap[i]]; }
+
+		inline std::pair<t_quadIter, t_quadIter> getQuadratic(int i) { 
+			return quadraticIterators[variableMap[i]];
 		}
 
 		inline long long int convertToLL(bias_type bias) {
 	           return static_cast<long long int>(bias * ratio);
 		}
 
+	private:
 		std::vector<std::pair<t_quadIter,t_quadIter>> quadraticIterators;
+		// Keep track of number of elements in the upper triangular row
+		// std::distance can be used too but that has linear complexity
+		// We count the elements while the mandatory traversal of the rows.
+		std::vector<int> numQuadratic;
 		std::vector<long long int> linear;
 		std::vector<int> countNegInRow;
 		std::vector<int> countNegInCol;
+		std::vector<int> usedVariables;
+		std::unordered_map<int, int> variableMap;
 		long long int cnst;
 		double maxAbsValue;
 		double ratio;
 		int numVars;
+		int numUsedVars;
 };
 
+template <class T>
+class  ImplicationNode {
+public:
+    int toVertex;
+    int reverseEdgeIdx;
+    int symmetricEdgeIdx;
+    T residual;
+}
+
+class ImplicationGraph {
+	public:
+	template <class BQM>
+        ImplicationGraph(BQM& bqm) {
+		numVertices = bqm.numUsedVars;
+		source = numVertices;
+		sink = 2 * numVertices + 1;
+		adjList.resize(2 * numVertices + 2);
+                for(int i = 0; i <numVertices; i++){
+		  int numEntriesI = bqm.get 
+		}
+
+
+
+	}
+	vector<vector<ImplicationNode<long long int> adjList;
+	int numVertices;
+	int source;
+	int sink;
+};
 struct SC
 {
 	std::vector<int> original;
