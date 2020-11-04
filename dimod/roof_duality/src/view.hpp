@@ -98,22 +98,6 @@ void printPosiform(Posiform& pos) {
      }
 }
 
-//
-//template <class IterInternal, class T>
-//class LLit {
-//  LLit(IterInternal internal, double ratio) _internal(internal), _ratio(ratio)
-//  {
-//     
-//  }
-//
-//  void operator++() { _internal++; };
-//  T  
-//  private:
-//    IterInternal _internal;
-//    double _ratio;
-//};
-
-
 // This class should contain all the information to recreate
 // a posiform corresponding to a BQM. The intention is to reduce
 // the memory footprint as much as possible. All bias values
@@ -125,14 +109,15 @@ class PosiformInfo {
 		using bias_type = typename BQM::bias_type;
 		using variable_type = typename BQM::variable_type;
 		using t_quadIter = typename BQM::const_outvars_iterator;
+
 		PosiformInfo(const BQM& bqm) {
 			numVars = bqm.num_variables();
-			quadraticIterators.resize(numVars);
 			linear.resize(numVars, 0);
-			countNegInRow.resize(numVars,0);
-			countNegInCol.resize(numVars,0);
+			quadraticIterators.resize(numVars);
+			numQuadratic.resize(numVars,0);
 			std::vector<bool> variableUsed(numVars, false);
 			
+			numLinear = 0;
 			maxAbsValue = 0;
 			cnst = 0;
 			for(int i = 0; i < numVars; i++) {
@@ -166,25 +151,27 @@ class PosiformInfo {
 				linear[i] = convertToLL(bqm.linear(i));
 			        auto it = quadraticIterators[i].first;
 				auto itEnd = quadraticIterators[i].second;
+				int numBiases = 0;
 				for(; it != itEnd; it++) {
-					int numBiasesInUpperTriangle = 0;
 					auto biasQuadLL = convertToLL(it->second);
-					if( biasQuadLL < 0) {
-						linear[i]+= biasQuadLL;
-   					  	countNegInRow[i]++;
-						countNegInCol[it->first]++;
-					}
 					if( biasQuadLL ) {
-						numBiasesInUpperTriangle++;
 						variableUsed[i] = true;
 						variableUsed[it->first] = true;
+       						numQuadratic[it->first]++;
+       						if( biasQuadLL < 0) {
+       							linear[i]+= biasQuadLL;
+       						}
+						numBiases++;
 					}
 				}
-				numQuadratic[i] = numBiasesInUpperTriangle;
+				numQuadratic[i]+= numBiases;
 			}
 			
 			for(int i = 0; i < linear.size(); i++){
-			       if(linear[i] != 0) variableUsed[i] = true;
+			       if(linear[i]) {
+				       variableUsed[i] = true;
+				       numLinear++;
+			       }
 			       if(linear[i] < 0) cnst += linear[i];
 			}
 			
@@ -209,7 +196,7 @@ class PosiformInfo {
 			std::cout << "Linear : " << std::endl;
 			for(int i =0; i < numVars; i++) {
 				if(linear[i])
-					std::cout << i <<" " << linear[i] << std::endl;
+					std::cout << variableMap[i] <<" " <<  i <<" " << linear[i] << std::endl;
 		        }
 
 			std::cout << "Quadratic : " << std::endl;
@@ -217,6 +204,7 @@ class PosiformInfo {
 	         		auto it = quadraticIterators[i].first;
 				auto itEnd = quadraticIterators[i].second;
 				for(; it != itEnd; it++){
+					std::cout << variableMap[i] <<" " << variableMap[it->first] << " "; 
 					std::cout << i << " " << it->first <<" " << convertToLL(it->second) << std::endl;
 				}
 			}  
@@ -229,13 +217,13 @@ class PosiformInfo {
 		}
 
 		inline int getNumVariables() { return numUsedVars; }
-		inline long long int getLinear(int i) { return linear[variableMap[i]]; }
-		inline getNumQuadratic(int i) { return countRowElem[variableMap[i]]; }
-		inline getNumNegInRow(int i) { return countNumNegInRow[variableMap[i]]; }
-		inline getNumNegInCol(int i) { return countNumNegInCol[variableMap[i]]; }
+		inline int getNumLinear() { return numLinear; }
+		inline long long int getLinear(int i) { return linear[usedVariables[i]]; }
+		inline int getNumQuadratic(int i) { return numQuadratic[usedVariables[i]]; }
+		inline int getMappedVariable(int i) { return variableMap[i]; }
 
 		inline std::pair<t_quadIter, t_quadIter> getQuadratic(int i) { 
-			return quadraticIterators[variableMap[i]];
+			return quadraticIterators[usedVariables[i]];
 		}
 
 		inline long long int convertToLL(bias_type bias) {
@@ -244,51 +232,169 @@ class PosiformInfo {
 
 	private:
 		std::vector<std::pair<t_quadIter,t_quadIter>> quadraticIterators;
-		// Keep track of number of elements in the upper triangular row
-		// std::distance can be used too but that has linear complexity
-		// We count the elements while the mandatory traversal of the rows.
-		std::vector<int> numQuadratic;
 		std::vector<long long int> linear;
-		std::vector<int> countNegInRow;
-		std::vector<int> countNegInCol;
+		std::vector<int> numQuadratic;
 		std::vector<int> usedVariables;
 		std::unordered_map<int, int> variableMap;
 		long long int cnst;
 		double maxAbsValue;
 		double ratio;
 		int numVars;
+		int numLinear;
 		int numUsedVars;
 };
 
-template <class T>
-class  ImplicationNode {
+template <class capacity_t>
+class  ImplicationEdge {
 public:
+    ImplicationEdge(int toVertex, capacity_t capacity): toVertex(toVertex), residual(capacity) { }
     int toVertex;
     int reverseEdgeIdx;
     int symmetricEdgeIdx;
-    T residual;
-}
+    capacity_t residual;
+};
 
-class ImplicationGraph {
+
+template <class capacity_t>
+class ImplicationNetwork {
 	public:
 	template <class BQM>
-        ImplicationGraph(BQM& bqm) {
-		numVertices = bqm.numUsedVars;
-		source = numVertices;
-		sink = 2 * numVertices + 1;
-		adjList.resize(2 * numVertices + 2);
-                for(int i = 0; i <numVertices; i++){
-		  int numEntriesI = bqm.get 
+        ImplicationNetwork(BQM& bqm) {
+
+		numVariables = bqm.getNumVariables();
+		numVertices = 2 * numVariables + 2;
+		source = numVariables;
+		sink = 2 * numVariables + 1;
+		adjList.resize(2 * numVariables + 2);
+		sizeEstimates.resize(numVertices, 0); 
+
+		// After this point complement function 
+		// should work.
+		assert(sink == complement(source));
+		assert(source == complement(sink));
+ 
+		int numLinear = bqm.getNumLinear();
+		adjList[source].reserve(numLinear);
+		adjList[sink].reserve(numLinear);
+	        sizeEstimates[source] = numLinear;
+		sizeEstimates[sink] = numLinear;
+
+	        // There are reverse edges for each edge created
+	        // in the implication graph. Depending on the sign
+	        // of the bias, an edge may start from v or v' but
+	        // reverse edges makes the edges coming out of v and
+	        // v' both equal to the number of quadratic biases
+	        // in which v contributes + 1 due to the linear term.
+                for(int u = 0; u <numVariables; u++) {
+		  int uComp = complement(u);
+		  int numEntries = bqm.getNumQuadratic(u);
+		  auto linear = bqm.getLinear(u);
+		  if(linear) numEntries++;
+		  adjList[u].reserve(numEntries);
+		  adjList[uComp].reserve(numEntries);
+		  sizeEstimates[u] = numEntries;
+		  sizeEstimates[uComp] = numEntries;
+
+		  if(linear > 0) {
+			createImplicationNetworkEdges(source, uComp, linear);
+		  } else if ( linear < 0) {
+		 	createImplicationNetworkEdges(source, u, -linear);
+		  } 
+
+		  auto quadraticSpan = bqm.getQuadratic(u);
+		  auto it = quadraticSpan.first;
+                  auto itEnd = quadraticSpan.second;
+                  for(; it != itEnd; it++){
+                     auto bias =  bqm.convertToLL(it->second);
+		     int v = bqm.getMappedVariable(it->first);
+		     if(bias > 0) {
+                        createImplicationNetworkEdges(u, complement(v), bias);
+		     } else if ( bias < 0) {
+                        createImplicationNetworkEdges(u, v, -bias);
+		     }
+                  }
 		}
-
-
-
 	}
-	vector<vector<ImplicationNode<long long int> adjList;
+	
+	inline int complement( int v ) { 
+		if ( v <= numVariables)
+			return (v + numVariables + 1);
+		else 
+			return (v - numVariables - 1);
+	}
+
+	void fillLastOutEdgeReferences(int from, int to) {
+		auto& edge = adjList[from].back();
+	        edge.reverseEdgeIdx = adjList[to].size() - 1;
+		int symmetricFrom = complement(to);
+		edge.symmetricEdgeIdx = adjList[symmetricFrom].size() - 1;
+	}
+
+	void createImplicationNetworkEdges(int from, int to, capacity_t capacity) {
+		int fromComp = complement(from);	
+		int toComp  = complement(to);
+		adjList[from].emplace_back(ImplicationEdge<capacity_t>(to, capacity));
+		adjList[to].emplace_back(ImplicationEdge<capacity_t>(from, 0));
+		adjList[toComp].emplace_back(ImplicationEdge<capacity_t>(fromComp, capacity));
+		adjList[fromComp].emplace_back(ImplicationEdge<capacity_t>(toComp, 0));
+		fillLastOutEdgeReferences(from, to);
+		fillLastOutEdgeReferences(to, from);
+		fillLastOutEdgeReferences(toComp, fromComp);
+		fillLastOutEdgeReferences(fromComp, toComp);
+	}
+
+	void print() {
+		std::cout <<"Implication Graph Information : " << std::endl;
+		std::cout <<"Num Variables : " << numVariables << std::endl;
+		std::cout <<"Num Vertices : " << numVertices << std::endl;
+	        for(int i = 0; i < adjList.size(); i++) {
+		  if(adjList[i].size() != sizeEstimates[i]) {
+ 		    std::cout <<"Inaccurate size estimate for out edges for " << i <<" " << sizeEstimates[i] << std::endl;
+		  }
+
+		  for(int j = 0; j < adjList[i].size(); j++) {
+		    auto& node = adjList[i][j];
+		    std::cout << "{ " << i << " --> " << node.toVertex << " " << node.residual << " ";
+		    std::cout <<  node.reverseEdgeIdx << " " << node.symmetricEdgeIdx << " } " << std::endl;	    
+                  }
+		  std::cout << endl;
+		  assert(adjList[i].size() == sizeEstimates[i]);
+		}	
+	}
+
+	vector<vector<ImplicationEdge<capacity_t>>> adjList;
+	// TODO : Verify size estimates are correct, for debugging, remove it. 
+	vector<int> sizeEstimates;
+	int numVariables;
 	int numVertices;
 	int source;
 	int sink;
 };
+
+
+template <class EdgeType>
+class push_relabel {
+	public:
+	using typename capacity_t = EdgeType::capacity_t; 
+	
+	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink) 
+	{
+		numVertices = adjList.size();
+		for(int i = 0; i < adjList.size(); i++) {
+			for(int j = 0; j < adjList[i].size(); j++) {
+			     adjList[i][j].residual = 99;
+			}
+		}
+	}
+
+
+	std::vector<std::vector<EdgeType>>&  adjList;
+	int numVertices;
+	int source;
+	int sink;
+}
+
+
 struct SC
 {
 	std::vector<int> original;
@@ -1574,6 +1680,10 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
      pi.print();
+     
+     ImplicationNetwork<long long int> implicationNet(pi);
+     implicationNet.print();
+
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
 }

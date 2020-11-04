@@ -98,22 +98,6 @@ void printPosiform(Posiform& pos) {
      }
 }
 
-//
-//template <class IterInternal, class T>
-//class LLit {
-//  LLit(IterInternal internal, double ratio) _internal(internal), _ratio(ratio)
-//  {
-//     
-//  }
-//
-//  void operator++() { _internal++; };
-//  T  
-//  private:
-//    IterInternal _internal;
-//    double _ratio;
-//};
-
-
 // This class should contain all the information to recreate
 // a posiform corresponding to a BQM. The intention is to reduce
 // the memory footprint as much as possible. All bias values
@@ -260,15 +244,17 @@ class PosiformInfo {
 		int numUsedVars;
 };
 
-template <class capacity_t>
-class  ImplicationNode {
+template <typename capacity_t>
+class  ImplicationEdge {
 public:
-    ImplicationNode(int toVertex, capacity_t capacity): toVertex(toVertex), residual(capacity) { }
+    typedef capacity_t capacity_type;
+    ImplicationEdge(int toVertex, capacity_t capacity): toVertex(toVertex), residual(capacity) { }
     int toVertex;
-    int reverseEdgeIdx;
-    int symmetricEdgeIdx;
+    int revEdgeIdx;
+    int symmEdgeIdx;
     capacity_t residual;
 };
+
 
 template <class capacity_t>
 class ImplicationNetwork {
@@ -340,18 +326,18 @@ class ImplicationNetwork {
 
 	void fillLastOutEdgeReferences(int from, int to) {
 		auto& edge = adjList[from].back();
-	        edge.reverseEdgeIdx = adjList[to].size() - 1;
+	        edge.revEdgeIdx = adjList[to].size() - 1;
 		int symmetricFrom = complement(to);
-		edge.symmetricEdgeIdx = adjList[symmetricFrom].size() - 1;
+		edge.symmEdgeIdx = adjList[symmetricFrom].size() - 1;
 	}
 
 	void createImplicationNetworkEdges(int from, int to, capacity_t capacity) {
 		int fromComp = complement(from);	
 		int toComp  = complement(to);
-		adjList[from].emplace_back(ImplicationNode<capacity_t>(to, capacity));
-		adjList[to].emplace_back(ImplicationNode<capacity_t>(from, 0));
-		adjList[toComp].emplace_back(ImplicationNode<capacity_t>(fromComp, capacity));
-		adjList[fromComp].emplace_back(ImplicationNode<capacity_t>(toComp, 0));
+		adjList[from].emplace_back(ImplicationEdge<capacity_t>(to, capacity));
+		adjList[to].emplace_back(ImplicationEdge<capacity_t>(from, 0));
+		adjList[toComp].emplace_back(ImplicationEdge<capacity_t>(fromComp, capacity));
+		adjList[fromComp].emplace_back(ImplicationEdge<capacity_t>(toComp, 0));
 		fillLastOutEdgeReferences(from, to);
 		fillLastOutEdgeReferences(to, from);
 		fillLastOutEdgeReferences(toComp, fromComp);
@@ -370,14 +356,14 @@ class ImplicationNetwork {
 		  for(int j = 0; j < adjList[i].size(); j++) {
 		    auto& node = adjList[i][j];
 		    std::cout << "{ " << i << " --> " << node.toVertex << " " << node.residual << " ";
-		    std::cout <<  node.reverseEdgeIdx << " " << node.symmetricEdgeIdx << " } " << std::endl;	    
+		    std::cout <<  node.revEdgeIdx << " " << node.symmEdgeIdx << " } " << std::endl;	    
                   }
 		  std::cout << endl;
 		  assert(adjList[i].size() == sizeEstimates[i]);
 		}	
 	}
 
-	vector<vector<ImplicationNode<capacity_t>>> adjList;
+	vector<vector<ImplicationEdge<capacity_t>>> adjList;
 	// TODO : Verify size estimates are correct, for debugging, remove it. 
 	vector<int> sizeEstimates;
 	int numVariables;
@@ -385,6 +371,145 @@ class ImplicationNetwork {
 	int source;
 	int sink;
 };
+
+template <class T>
+class vecQueue {
+	public:
+   vecQueue(int size) { front = 0; back = 0; data.resize(size); }
+   void push(T val) { data[back++] = val;}
+   T pop() { return data[front++]; }
+   bool empty() { return (front == back); }
+   int front;
+   int back;
+   std::vector<T> data;
+};
+
+template <class EdgeType>
+class push_relabel {
+	public:
+	using capacity_t = typename EdgeType::capacity_type; 
+	using edge_size_t = size_t;
+	
+	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink), vertexQ(vecQueue<int>(adjList.size())) 
+	{
+		numGRelabels = 0;
+		numRelabels = 0;
+		numPushes = 0;
+		numVertices = adjList.size();
+		vHeight.resize(numVertices, 1);
+		vHeight[source] = numVertices;
+		vHeight[sink] = 0;
+		vExcess.resize(numVertices, 0);
+                levels.resize(numVertices);
+		vListIterators.resize(numVertices);
+
+                for(auto it = adjList[source].begin(), itEnd = adjList[source].end(); it != itEnd; it++) {
+	            capacity_t flow  = it->residual;
+		    adjList[it->toVertex][it->revEdgeIdx].residual+= flow;
+		    it->residual = 0;
+                    vExcess[it->toVertex]+= flow;
+		    numPushes++;
+	        }		
+
+
+	}
+	
+	void global_relabel() {
+		numGRelabels++;
+		std::fill(vHeight.begin(), vHeight.end(), numVertices);
+		vHeight[sink] = 0;
+		for(int h = 0; h <= maxHeight; h++)
+		{
+			levels[h].active_vertices.clear();
+			levels[h].inactive_vertices.clear();
+		}	
+                maxHeight = 0;
+		maxActiveHeight =0;
+		minActiveHeight = numVertices;
+
+		vertexQ.push(sink);
+ 		while(! vertexQ.empty()) {
+		   int v_parent = vertexQ.pop();
+		   int children_height = vHeight[v_parent] + 1;
+		   std::cout<<" Exploring " << v_parent << " height " << children_height -1 << std::endl;
+		   for(auto it = adjList[v_parent].begin(), itEnd = adjList[v_parent].end(); it != itEnd; it++) {
+			int toVertex = it->toVertex;
+			std::cout << toVertex << " " << it->revEdgeIdx << " " << adjList[toVertex].size() << std::endl;
+			if(adjList[toVertex][it->revEdgeIdx].residual && vHeight[toVertex] == numVertices)
+			{
+				vHeight[toVertex] = children_height;
+				std::cout << " Befpore push " << std::endl;
+				vertexQ.push(toVertex);
+				std::cout << " After push " << std::endl;
+				if(vExcess[toVertex] > 0){
+				   add_to_active_list(toVertex);
+				} else {
+				   add_to_inactive_list(toVertex);
+				}
+			}
+		   }
+		}
+	}
+
+
+        void add_to_active_list(int vertex) {
+	   int height = vHeight[vertex];
+	   levels[height].active_vertices.push_front(vertex);
+	   maxActiveHeight = std::max(height, maxActiveHeight);
+	   minActiveHeight = std::min(height, minActiveHeight);
+	   vListIterators[vertex] = levels[height].active_vertices.begin();
+	}
+	
+	void remove_from_active_list(int vertex) {
+	  levels[vHeight[vertex]].active_vertices.erase(vListIterators[vertex]);
+	}
+	
+	void remove_from_inactive_list(int vertex) {
+	  levels[vHeight[vertex]].inactive_vertices.erase(vListIterators[vertex]);
+	}
+
+      	void add_to_inactive_list(int vertex) {
+	   int height = vHeight[vertex];
+	   levels[height].inactive_vertices.push_front(vertex);
+	   vListIterators[vertex] = levels[height].inactive_vertices.begin();
+	}
+	
+	void printLevels() {
+		std::cout <<"Levels : " << std::endl;
+	 	for(int i = 0; i < levels.size(); i++) {
+		  std::cout<< "Level " << i << std::endl;
+  		  for(auto it = levels[i].active_vertices.begin(), itEnd = levels[i].active_vertices.end(); it != itEnd; it++){
+		     std::cout << *it << " ";
+	          }		  
+		  std::cout<< std::endl;
+		  for(auto it = levels[i].inactive_vertices.begin(), itEnd = levels[i].inactive_vertices.end(); it != itEnd; it++){
+		     std::cout << *it << " ";
+	          }		  
+		}	
+	}
+
+
+        struct level_t {
+		std::list<int> active_vertices;
+		std::list<int> inactive_vertices;
+	};
+
+	std::vector<level_t> levels;
+	std::vector<std::list<int>::iterator> vListIterators;
+
+	std::vector<int> vHeight;
+	std::vector<capacity_t> vExcess;
+	vecQueue<int> vertexQ;
+	std::vector<std::vector<EdgeType>>&  adjList;
+	edge_size_t numEdges;
+	
+	size_t numGRelabels, numPushes, numRelabels;
+	int numVertices;
+	int maxActiveHeight, minActiveHeight, maxHeight;
+	int source;
+	int sink;
+};
+
 struct SC
 {
 	std::vector<int> original;
@@ -1670,9 +1795,18 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
      pi.print();
-     
+
+     std::cout << "Size of Implication Node without type : " << sizeof(ImplicationEdge<long long int>) << std::endl;
+
      ImplicationNetwork<long long int> implicationNet(pi);
      implicationNet.print();
+    
+     push_relabel<ImplicationEdge<long long int>> pushRelab(implicationNet.adjList, implicationNet.source, implicationNet.sink);
+     implicationNet.print();
+
+     pushRelab.global_relabel();
+     pushRelab.printLevels();
+
 
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
