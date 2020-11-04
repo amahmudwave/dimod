@@ -36,6 +36,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -387,6 +388,7 @@ class vecQueue {
 template <class EdgeType>
 class push_relabel {
 	public:
+	using edgeIterator = typename vector<EdgeType>::iterator;
 	using capacity_t = typename EdgeType::capacity_type; 
 	using edge_size_t = size_t;
 	
@@ -402,8 +404,14 @@ class push_relabel {
 		vExcess.resize(numVertices, 0);
                 levels.resize(numVertices);
 		vListIterators.resize(numVertices);
+		vCurrentEdge.resize(numVertices);
 
-                for(auto it = adjList[source].begin(), itEnd = adjList[source].end(); it != itEnd; it++) {
+		for(int v = 0 ; v < numVertices; v++) {
+			vCurrentEdge[v] = {adjList[v].begin(), adjList[v].end()};
+		}
+		
+		edgeIterator it, itEnd;
+                for(std::tie(it, itEnd) = outEdges(source); it != itEnd; it++) {
 	            capacity_t flow  = it->residual;
 		    adjList[it->toVertex][it->revEdgeIdx].residual+= flow;
 		    it->residual = 0;
@@ -447,6 +455,10 @@ class push_relabel {
 		}
 	}
 
+
+	std::pair<edgeIterator, edgeIterator> outEdges(int vertex) {
+	 	return {adjList[vertex].begin(), adjList[vertex].end()} ;
+	}
 
         void add_to_active_list(int vertex) {
 	   int height = vHeight[vertex];
@@ -501,6 +513,7 @@ class push_relabel {
 	std::vector<capacity_t> vExcess;
 	vecQueue<int> vertexQ;
 	std::vector<std::vector<EdgeType>>&  adjList;
+	std::vector<std::pair<edgeIterator, edgeIterator>> vCurrentEdge;
 	edge_size_t numEdges;
 	
 	size_t numGRelabels, numPushes, numRelabels;
