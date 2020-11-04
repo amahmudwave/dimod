@@ -431,16 +431,12 @@ class push_relabel {
  		while(! vertexQ.empty()) {
 		   int v_parent = vertexQ.pop();
 		   int children_height = vHeight[v_parent] + 1;
-		   std::cout<<" Exploring " << v_parent << " height " << children_height -1 << std::endl;
 		   for(auto it = adjList[v_parent].begin(), itEnd = adjList[v_parent].end(); it != itEnd; it++) {
 			int toVertex = it->toVertex;
-			std::cout << toVertex << " " << it->revEdgeIdx << " " << adjList[toVertex].size() << std::endl;
 			if(adjList[toVertex][it->revEdgeIdx].residual && vHeight[toVertex] == numVertices)
 			{
 				vHeight[toVertex] = children_height;
-				std::cout << " Befpore push " << std::endl;
 				vertexQ.push(toVertex);
-				std::cout << " After push " << std::endl;
 				if(vExcess[toVertex] > 0){
 				   add_to_active_list(toVertex);
 				} else {
@@ -478,14 +474,18 @@ class push_relabel {
 		std::cout <<"Levels : " << std::endl;
 	 	for(int i = 0; i < levels.size(); i++) {
 		  std::cout<< "Level " << i << std::endl;
+		  std::cout <<"Active list :" << std::endl;
   		  for(auto it = levels[i].active_vertices.begin(), itEnd = levels[i].active_vertices.end(); it != itEnd; it++){
 		     std::cout << *it << " ";
 	          }		  
 		  std::cout<< std::endl;
+		  std::cout <<"Inactive list :" << std::endl;
 		  for(auto it = levels[i].inactive_vertices.begin(), itEnd = levels[i].inactive_vertices.end(); it != itEnd; it++){
 		     std::cout << *it << " ";
 	          }		  
+		 std::cout<< std::endl;
 		}	
+		std::cout<< std::endl;
 	}
 
 
