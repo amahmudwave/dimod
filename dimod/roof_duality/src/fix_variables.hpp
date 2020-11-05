@@ -373,6 +373,95 @@ class ImplicationNetwork {
 	int sink;
 };
 
+template <typename node>
+    class linked_list
+    {
+        node _head = node { }, _tail = node { };
+        std::size_t _size { 0 };
+    public:
+        linked_list ( )
+        {
+            _head . next = &_tail;
+            _tail . prev = &_head;
+	    _size = 0;
+        }
+
+        node * pop ( ) noexcept
+        {
+            auto * ret = _head . next;
+            _head . next = _head . next -> next;
+            _head . next -> prev = &_head;
+            --_size;
+            return ret;
+        }
+
+        void push ( node * n ) noexcept
+        {
+            n -> next = &_tail;
+            n -> prev = _tail . prev;
+            _tail . prev -> next = n;
+            _tail . prev = n;
+            ++_size;
+        }
+
+        void push_front ( node * n ) noexcept
+        {
+            n -> next = _head . next;
+            n -> prev = &_head;
+            _head . next -> prev = n;
+            _head . next = n;
+            ++_size;
+        }
+
+        void erase ( node * n ) noexcept
+        {
+            n -> prev -> next = n -> next;
+            n -> next -> prev = n -> prev;
+            --_size;
+        }
+
+        node * front ( ) const noexcept
+        {
+            return _head . next;
+        }
+
+        node * back ( ) const noexcept
+        {
+            return _tail . prev;
+        }
+
+        bool empty ( ) const noexcept
+        {
+            return _size == 0;
+        }
+
+        void clear ( ) noexcept
+        {
+            _head . next = &_tail;
+            _tail . prev = &_head;
+            _size = 0;
+        }
+
+        std::size_t size ( ) const noexcept
+        {
+            return _size;
+        }
+
+        void append_list ( linked_list & other ) noexcept
+        {
+            if ( other . empty () )
+                return;
+            auto other_head = other . front ();
+            auto other_tail = other . back ();
+            this -> back () -> next = other_head;
+            other_head -> prev = this -> back ();
+            _tail . prev = other_tail;
+            other_tail -> next = &_tail;
+            _size += other . size ();
+            other . clear ();
+        }
+    };
+
 template <class T>
 class vecQueue {
 	public:
@@ -391,7 +480,13 @@ class push_relabel {
 	using edgeIterator = typename vector<EdgeType>::iterator;
 	using capacity_t = typename EdgeType::capacity_type; 
 	using edge_size_t = size_t;
-	
+
+  	struct vertex_t {
+	  vertex_t * next;
+	  vertex_t * prev;
+	  int id;  
+	};
+
 	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink), vertexQ(vecQueue<int>(adjList.size())) 
 	{
 		numGRelabels = 0;
@@ -402,12 +497,13 @@ class push_relabel {
 		vHeight[source] = numVertices;
 		vHeight[sink] = 0;
 		vExcess.resize(numVertices, 0);
+		vertices.resize(numVertices);
                 levels.resize(numVertices);
-		vListIterators.resize(numVertices);
-		vCurrentEdge.resize(numVertices);
+		vCurrentEdges.resize(numVertices);
 
 		for(int v = 0 ; v < numVertices; v++) {
-			vCurrentEdge[v] = {adjList[v].begin(), adjList[v].end()};
+			vCurrentEdges[v] = {adjList[v].begin(), adjList[v].end()};
+			vertices[v].id = v;
 		}
 		
 		edgeIterator it, itEnd;
@@ -418,14 +514,14 @@ class push_relabel {
                     vExcess[it->toVertex]+= flow;
 		    numPushes++;
 	        }		
-
+		
+		//Not adding anything to the lists as a global update
+		//will be triggered in the beginning.
 
 	}
 	
 	void global_relabel() {
 		numGRelabels++;
-		std::fill(vHeight.begin(), vHeight.end(), numVertices);
-		vHeight[sink] = 0;
 		for(int h = 0; h <= maxHeight; h++)
 		{
 			levels[h].active_vertices.clear();
@@ -435,26 +531,95 @@ class push_relabel {
 		maxActiveHeight =0;
 		minActiveHeight = numVertices;
 
+		std::fill(vHeight.begin(), vHeight.end(), numVertices);
+
+		vHeight[sink] = 0;
 		vertexQ.push(sink);
- 		while(! vertexQ.empty()) {
+ 		while(!vertexQ.empty()) {
 		   int v_parent = vertexQ.pop();
 		   int children_height = vHeight[v_parent] + 1;
-		   for(auto it = adjList[v_parent].begin(), itEnd = adjList[v_parent].end(); it != itEnd; it++) {
+		   edgeIterator it, itEnd;
+		   for(std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
 			int toVertex = it->toVertex;
 			if(adjList[toVertex][it->revEdgeIdx].residual && vHeight[toVertex] == numVertices)
 			{
 				vHeight[toVertex] = children_height;
-				vertexQ.push(toVertex);
+				maxHeight = std::max(maxHeight, children_height);
 				if(vExcess[toVertex] > 0){
 				   add_to_active_list(toVertex);
 				} else {
 				   add_to_inactive_list(toVertex);
 				}
+				vertexQ.push(toVertex);
 			}
 		   }
 		}
 	}
 
+	/*
+	void discharge(int vertex) {
+		assert(vExcess[vertex] > 0);
+		while(1) {
+			edgeIterator eit, eitEnd;
+			int vertexHeight = vHeight[vertex];
+			int minToHeightTest = numVertices;
+			edgeIterator eitMinRelabel;
+			for(std::tie(eit, eitEnd) = vCurrentEdges[vertex]; eit != eitEnd; eit++) {
+				if(eit->residual) {
+					int toVertex = eit->toVertex;
+					int toVertexHeight = vHeight[toVertex];
+					if(vertexHeight == toVertexHeight + 1) {
+						if(toVertex != sink && vExcess[toVertex] == 0){
+							// remove_from_inactive_list(toVertex);
+							levels[toVertexHeight].active_vertices.erase(&vertices[toVertex]);
+							// add_to_active_list(toVertex);
+							levels[toVertexHeight].active_vertices.push_front(&vertices[toVertex]);
+							maxActiveHeight = std::max(toVertexHeight, maxActiveHeight);
+							minActiveHeight = std::min(toVertexHeight, minActiveHeight);
+						}
+						// Push flow inlined here
+						capacity_t flow = std::min(eit->residual, vExcess[vertex]);
+						eit->residual -= flow;
+						adjList[toVertex][eit->revEdgeIdx].residual += flow;
+						vExcess[vertex] -= flow;
+						vExcess[toVertex]+= flow;
+						if(vExcess[vertex] == 0) break;
+					}
+				        	
+					else {
+					   if (toVertexHeight < minToHeightTest) {
+					      minToHeightTest = toVertexHeight;
+					      eitMinRelable = eit;
+					   } 
+					}
+				}
+			}
+
+			if( eit == eitEnd ) {
+				
+
+
+
+
+	}
+
+	*/
+        void relabel(int vertex) {
+
+
+
+
+
+	}
+
+	void push(int fromVertex, edgeIterator eit) {
+		int toVertex = eit->toVertex;
+		capacity_t flow = std::min(eit->residual, vExcess[fromVertex]);
+		eit->residual -= flow;
+		adjList[toVertex][eit->revEdgeIdx].residual += flow;
+		vExcess[fromVertex] -= flow;
+		vExcess[toVertex]+= flow;
+	}
 
 	std::pair<edgeIterator, edgeIterator> outEdges(int vertex) {
 	 	return {adjList[vertex].begin(), adjList[vertex].end()} ;
@@ -462,58 +627,64 @@ class push_relabel {
 
         void add_to_active_list(int vertex) {
 	   int height = vHeight[vertex];
-	   levels[height].active_vertices.push_front(vertex);
+	   levels[height].active_vertices.push_front(&vertices[vertex]);
 	   maxActiveHeight = std::max(height, maxActiveHeight);
 	   minActiveHeight = std::min(height, minActiveHeight);
-	   vListIterators[vertex] = levels[height].active_vertices.begin();
 	}
 	
 	void remove_from_active_list(int vertex) {
-	  levels[vHeight[vertex]].active_vertices.erase(vListIterators[vertex]);
+	  levels[vHeight[vertex]].active_vertices.erase(&vertices[vertex]);
 	}
 	
 	void remove_from_inactive_list(int vertex) {
-	  levels[vHeight[vertex]].inactive_vertices.erase(vListIterators[vertex]);
+	  levels[vHeight[vertex]].inactive_vertices.erase(&vertices[vertex]);
 	}
 
       	void add_to_inactive_list(int vertex) {
-	   int height = vHeight[vertex];
-	   levels[height].inactive_vertices.push_front(vertex);
-	   vListIterators[vertex] = levels[height].inactive_vertices.begin();
+	   levels[vHeight[vertex]].inactive_vertices.push_front(&vertices[vertex]);
 	}
 	
 	void printLevels() {
 		std::cout <<"Levels : " << std::endl;
 	 	for(int i = 0; i < levels.size(); i++) {
 		  std::cout<< "Level " << i << std::endl;
-		  std::cout <<"Active list :" << std::endl;
-  		  for(auto it = levels[i].active_vertices.begin(), itEnd = levels[i].active_vertices.end(); it != itEnd; it++){
-		     std::cout << *it << " ";
+		  
+		  int size = levels[i].active_vertices.size();
+		  std::cout <<"Active list :" << size << " elements" << std::endl;
+		  vertex_t* pVertexNode  = levels[i].active_vertices.front();
+
+  		  for(int n = 0; n < size; n++){
+		     std::cout << pVertexNode->id  << " ";
+		     pVertexNode = pVertexNode->next;
 	          }		  
 		  std::cout<< std::endl;
-		  std::cout <<"Inactive list :" << std::endl;
-		  for(auto it = levels[i].inactive_vertices.begin(), itEnd = levels[i].inactive_vertices.end(); it != itEnd; it++){
-		     std::cout << *it << " ";
+
+		  size = levels[i].inactive_vertices.size();
+		  std::cout <<"Inactive list :" << size << " elements" << std::endl;
+		  pVertexNode  = levels[i].inactive_vertices.front();
+
+  		  for(int n = 0; n < size; n++){
+		     std::cout << pVertexNode->id  << " ";
+		     pVertexNode = pVertexNode->next;
 	          }		  
-		 std::cout<< std::endl;
+
+		  std::cout<< std::endl;
 		}	
-		std::cout<< std::endl;
 	}
 
 
         struct level_t {
-		std::list<int> active_vertices;
-		std::list<int> inactive_vertices;
+		linked_list<vertex_t> active_vertices;
+		linked_list<vertex_t> inactive_vertices;
 	};
-
 	std::vector<level_t> levels;
-	std::vector<std::list<int>::iterator> vListIterators;
+	std::vector<vertex_t> vertices;
 
 	std::vector<int> vHeight;
 	std::vector<capacity_t> vExcess;
 	vecQueue<int> vertexQ;
 	std::vector<std::vector<EdgeType>>&  adjList;
-	std::vector<std::pair<edgeIterator, edgeIterator>> vCurrentEdge;
+	std::vector<std::pair<edgeIterator, edgeIterator>> vCurrentEdges;
 	edge_size_t numEdges;
 	
 	size_t numGRelabels, numPushes, numRelabels;
