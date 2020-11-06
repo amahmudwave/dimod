@@ -623,6 +623,7 @@ class push_relabel {
 
         void relabel(int vertex) {
 		int minRelabelHeight = numVertices;
+		vHeight[vertex] = minRelabelHeight;
 		edgeIterator eit, eitEnd, eitMinRelabel;
 		for(std::tie(eit, eitEnd) = outEdges(vertex); eit != eitEnd; eit++) {
 			int toVertex = eit->toVertex;
@@ -649,7 +650,7 @@ class push_relabel {
 			}
 			else{
 				vertex_node* pVertexNode = levels[maxActiveHeight].active_vertices.pop();
-				std::cout << " Going to discharge " << pVertexNode->id << std::endl;
+				std::cout << " Going to discharge " << pVertexNode->id << " at height " << vHeight[pVertexNode->id] << std::endl;
 				discharge(pVertexNode->id);
 			}
 		}
