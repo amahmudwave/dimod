@@ -466,6 +466,7 @@ template <class T>
 class vecQueue {
 	public:
    vecQueue(int size) { front = 0; back = 0; data.resize(size); }
+   void reset () { front = 0; back = 0; }
    void push(T val) { data[back++] = val;}
    T pop() { return data[front++]; }
    bool empty() { return (front == back); }
@@ -487,16 +488,25 @@ class push_relabel {
 	  int id;  
 	};
 
+	// Keep the vertex data separate from the vertex nodes
+	// for better cache locality, since the next & prev
+	// pointers are not needed and we access the nodes
+	// only when inserting and retrieving from the linked 
+	// lists of levels, not while traversing neighbors.
+	struct vertex_data_t {
+		int height;
+		capacity_t excess;
+	};
+
 	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink), vertexQ(vecQueue<int>(adjList.size())) 
 	{
 		numGRelabels = 0;
 		numRelabels = 0;
 		numPushes = 0;
 		numVertices = adjList.size();
-		vHeight.resize(numVertices, 1);
-		vHeight[source] = numVertices;
-		vHeight[sink] = 0;
-		vExcess.resize(numVertices, 0);
+		_vertex_data.resize(numVertices, {1, 0});
+		_vertex_data[source].height = numVertices;
+		_vertex_data[sink].height = 0;
 		vertices.resize(numVertices);
                 levels.resize(numVertices);
 		vCurrentEdges.resize(numVertices);
@@ -504,6 +514,7 @@ class push_relabel {
 		for(int v = 0 ; v < numVertices; v++) {
 			vCurrentEdges[v] = {adjList[v].begin(), adjList[v].end()};
 			vertices[v].id = v;
+			std::cout << " V " << v << " height " << _vertex_data[v].height  <<  " excess " << _vertex_data[v].excess << std::endl;
 		}
 		
 		edgeIterator it, itEnd;
@@ -511,16 +522,19 @@ class push_relabel {
 	            capacity_t flow  = it->residual;
 		    adjList[it->toVertex][it->revEdgeIdx].residual+= flow;
 		    it->residual = 0;
-                    vExcess[it->toVertex]+= flow;
+                    _vertex_data[it->toVertex].excess+= flow;
 		    numPushes++;
 	        }		
 		
-		//Not adding anything to the lists as a global update
-		//will be triggered in the beginning.
-
+		maxHeight = numVertices -1;
+		maxActiveHeight = 0;
+		minActiveHeight = numVertices;
+				
+		global_relabel();
 	}
 	
 	void global_relabel() {
+
 		numGRelabels++;
 		for(int h = 0; h <= maxHeight; h++)
 		{
@@ -531,21 +545,27 @@ class push_relabel {
 		maxActiveHeight =0;
 		minActiveHeight = numVertices;
 
-		std::fill(vHeight.begin(), vHeight.end(), numVertices);
+		for(int i = 0; i < numVertices; i++) {
+			_vertex_data[i].height = numVertices;
+		}
 
-		vHeight[sink] = 0;
+		_vertex_data[sink].height = 0;
+		vertexQ.reset();
 		vertexQ.push(sink);
  		while(!vertexQ.empty()) {
 		   int v_parent = vertexQ.pop();
-		   int children_height = vHeight[v_parent] + 1;
+		   int children_height = _vertex_data[v_parent].height + 1;
 		   edgeIterator it, itEnd;
 		   for(std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
 			int toVertex = it->toVertex;
-			if(adjList[toVertex][it->revEdgeIdx].residual && vHeight[toVertex] == numVertices)
+			std::cout << " Parent " << v_parent << " " << children_height -1 << std::endl;
+			if(adjList[toVertex][it->revEdgeIdx].residual && _vertex_data[toVertex].height == numVertices)
 			{
-				vHeight[toVertex] = children_height;
+
+				std::cout << " Child " << toVertex << " " << children_height  << std::endl;
+				_vertex_data[toVertex].height = children_height;
 				maxHeight = std::max(maxHeight, children_height);
-				if(vExcess[toVertex] > 0){
+				if(_vertex_data[toVertex].excess > 0){
 				   add_to_active_list(toVertex);
 				} else {
 				   add_to_inactive_list(toVertex);
@@ -558,30 +578,32 @@ class push_relabel {
 
 	
 	void discharge(int vertex) {
-		assert(vExcess[vertex] > 0);
+		assert(_vertex_data[vertex].excess > 0);
 		while(1) {
 			edgeIterator eit, eitEnd;
-			int vertexHeight = vHeight[vertex];
+			int vertexHeight = _vertex_data[vertex].height;
 			for(std::tie(eit, eitEnd) = vCurrentEdges[vertex]; eit != eitEnd; eit++) {
 				if(eit->residual) {
 					int toVertex = eit->toVertex;
-					int toVertexHeight = vHeight[toVertex];
+					int toVertexHeight = _vertex_data[toVertex].height;
 					if(vertexHeight == toVertexHeight + 1) {
-						if(toVertex != sink && vExcess[toVertex] == 0){
+						if(toVertex != sink && _vertex_data[toVertex].excess == 0){
 							// remove_from_inactive_list(toVertex);
 							levels[toVertexHeight].inactive_vertices.erase(&vertices[toVertex]);
 							// add_to_active_list(toVertex);
 							levels[toVertexHeight].active_vertices.push_front(&vertices[toVertex]);
 							maxActiveHeight = std::max(toVertexHeight, maxActiveHeight);
 							minActiveHeight = std::min(toVertexHeight, minActiveHeight);
+							assert(maxActiveHeight >= 0 && maxActiveHeight < numVertices);
+							assert(minActiveHeight >= 0 && minActiveHeight < numVertices);
 						}
 						// Push flow inlined here
-						capacity_t flow = std::min(eit->residual, vExcess[vertex]);
+						capacity_t flow = std::min(eit->residual, _vertex_data[vertex].excess);
 						eit->residual -= flow;
 						adjList[toVertex][eit->revEdgeIdx].residual += flow;
-						vExcess[vertex] -= flow;
-						vExcess[toVertex]+= flow;
-						if(vExcess[vertex] == 0) break;
+						_vertex_data[vertex].excess -= flow;
+						_vertex_data[toVertex].excess += flow;
+						if(_vertex_data[vertex].excess  == 0) break;
 					}
 				}
 			}
@@ -593,7 +615,7 @@ class push_relabel {
 				   levels[preRelabelHeight].inactive_vertices.empty()) {
 					gap_relabel(preRelabelHeight);
 				}
-				if(vHeight[vertex] == numVertices) break;
+				if(_vertex_data[vertex].height == numVertices) break;
 			} else {
 					
 				vCurrentEdges[vertex].first = eit; 
@@ -610,31 +632,33 @@ class push_relabel {
 			int inactiveLevelSize = levelIt->inactive_vertices.size();
 			vertex_node* pVertexNode = levelIt->inactive_vertices.front();
 		        for(int i = 0; i < inactiveLevelSize; i++) {
-				vHeight[pVertexNode->id] = numVertices;
+				_vertex_data[pVertexNode->id].height = numVertices;
 				pVertexNode = pVertexNode->next;
 			}	
 			levelIt->inactive_vertices.clear();
 		}
 		maxHeight = emptyLevelHeight -1;
 		maxActiveHeight = emptyLevelHeight -1;
+		assert(maxHeight >= 0 && maxHeight < numVertices);
+		assert(maxActiveHeight >= 0 && maxActiveHeight < numVertices);
 	}
 
 
 
         void relabel(int vertex) {
 		int minRelabelHeight = numVertices;
-		vHeight[vertex] = minRelabelHeight;
+		_vertex_data[vertex].height = minRelabelHeight;
 		edgeIterator eit, eitEnd, eitMinRelabel;
 		for(std::tie(eit, eitEnd) = outEdges(vertex); eit != eitEnd; eit++) {
 			int toVertex = eit->toVertex;
-			if(eit->residual && vHeight[toVertex] < minRelabelHeight) {
-				minRelabelHeight = vHeight[toVertex];
+			if(eit->residual && _vertex_data[toVertex].height < minRelabelHeight) {
+				minRelabelHeight = _vertex_data[toVertex].height;
 				eitMinRelabel = eit;	
 			}
 		}
 		minRelabelHeight++;
 		if(minRelabelHeight < numVertices) {
-			vHeight[vertex] = minRelabelHeight;
+			_vertex_data[vertex].height = minRelabelHeight;
 			vCurrentEdges[vertex].first = eitMinRelabel;
 			maxHeight = std::max(maxHeight, minRelabelHeight);
 		}
@@ -650,11 +674,11 @@ class push_relabel {
 			}
 			else{
 				vertex_node* pVertexNode = levels[maxActiveHeight].active_vertices.pop();
-				std::cout << " Going to discharge " << pVertexNode->id << " at height " << vHeight[pVertexNode->id] << std::endl;
+				std::cout << " Going to discharge " << pVertexNode->id << " at height " << _vertex_data[pVertexNode->id].height << std::endl;
 				discharge(pVertexNode->id);
 			}
 		}
-		return vExcess[sink];
+		return _vertex_data[sink].excess;
 	}
 
 
@@ -662,11 +686,11 @@ class push_relabel {
 
 	void push(int fromVertex, edgeIterator eit) {
 		int toVertex = eit->toVertex;
-		capacity_t flow = std::min(eit->residual, vExcess[fromVertex]);
+		capacity_t flow = std::min(eit->residual, _vertex_data[fromVertex].excess);
 		eit->residual -= flow;
 		adjList[toVertex][eit->revEdgeIdx].residual += flow;
-		vExcess[fromVertex] -= flow;
-		vExcess[toVertex]+= flow;
+		_vertex_data[fromVertex].excess -= flow;
+		_vertex_data[toVertex].excess += flow;
 	}
 
 	std::pair<edgeIterator, edgeIterator> outEdges(int vertex) {
@@ -674,22 +698,22 @@ class push_relabel {
 	}
 
         void add_to_active_list(int vertex) {
-	   int height = vHeight[vertex];
+	   int height = _vertex_data[vertex].height;
 	   levels[height].active_vertices.push_front(&vertices[vertex]);
 	   maxActiveHeight = std::max(height, maxActiveHeight);
 	   minActiveHeight = std::min(height, minActiveHeight);
 	}
 	
 	void remove_from_active_list(int vertex) {
-	  levels[vHeight[vertex]].active_vertices.erase(&vertices[vertex]);
+	  levels[_vertex_data[vertex].height].active_vertices.erase(&vertices[vertex]);
 	}
 	
 	void remove_from_inactive_list(int vertex) {
-	  levels[vHeight[vertex]].inactive_vertices.erase(&vertices[vertex]);
+	  levels[_vertex_data[vertex].height].inactive_vertices.erase(&vertices[vertex]);
 	}
 
       	void add_to_inactive_list(int vertex) {
-	   levels[vHeight[vertex]].inactive_vertices.push_front(&vertices[vertex]);
+	   levels[_vertex_data[vertex].height].inactive_vertices.push_front(&vertices[vertex]);
 	}
 	
 	void printLevels() {
@@ -728,8 +752,7 @@ class push_relabel {
 	std::vector<level_t> levels;
 	std::vector<vertex_node> vertices;
 
-	std::vector<int> vHeight;
-	std::vector<capacity_t> vExcess;
+	std::vector<vertex_data_t> _vertex_data; 
 	vecQueue<int> vertexQ;
 	std::vector<std::vector<EdgeType>>&  adjList;
 	std::vector<std::pair<edgeIterator, edgeIterator>> vCurrentEdges;
