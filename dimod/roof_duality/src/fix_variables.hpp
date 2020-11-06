@@ -481,9 +481,9 @@ class push_relabel {
 	using capacity_t = typename EdgeType::capacity_type; 
 	using edge_size_t = size_t;
 
-  	struct vertex_t {
-	  vertex_t * next;
-	  vertex_t * prev;
+  	struct vertex_node {
+	  vertex_node * next;
+	  vertex_node * prev;
 	  int id;  
 	};
 
@@ -556,14 +556,12 @@ class push_relabel {
 		}
 	}
 
-	/*
+	
 	void discharge(int vertex) {
 		assert(vExcess[vertex] > 0);
 		while(1) {
 			edgeIterator eit, eitEnd;
 			int vertexHeight = vHeight[vertex];
-			int minToHeightTest = numVertices;
-			edgeIterator eitMinRelabel;
 			for(std::tie(eit, eitEnd) = vCurrentEdges[vertex]; eit != eitEnd; eit++) {
 				if(eit->residual) {
 					int toVertex = eit->toVertex;
@@ -571,7 +569,7 @@ class push_relabel {
 					if(vertexHeight == toVertexHeight + 1) {
 						if(toVertex != sink && vExcess[toVertex] == 0){
 							// remove_from_inactive_list(toVertex);
-							levels[toVertexHeight].active_vertices.erase(&vertices[toVertex]);
+							levels[toVertexHeight].inactive_vertices.erase(&vertices[toVertex]);
 							// add_to_active_list(toVertex);
 							levels[toVertexHeight].active_vertices.push_front(&vertices[toVertex]);
 							maxActiveHeight = std::max(toVertexHeight, maxActiveHeight);
@@ -585,32 +583,81 @@ class push_relabel {
 						vExcess[toVertex]+= flow;
 						if(vExcess[vertex] == 0) break;
 					}
-				        	
-					else {
-					   if (toVertexHeight < minToHeightTest) {
-					      minToHeightTest = toVertexHeight;
-					      eitMinRelable = eit;
-					   } 
-					}
 				}
 			}
 
 			if( eit == eitEnd ) {
-				
-
-
-
-
+				int preRelabelHeight = vertexHeight;
+				relabel(vertex);
+				if(levels[preRelabelHeight].active_vertices.empty() && 
+				   levels[preRelabelHeight].inactive_vertices.empty()) {
+					gap_relabel(preRelabelHeight);
+				}
+				if(vHeight[vertex] == numVertices) break;
+			} else {
+					
+				vCurrentEdges[vertex].first = eit; 
+				add_to_inactive_list(vertex);
+				break;
+			}
+		}
 	}
 
-	*/
+
+	void gap_relabel(int emptyLevelHeight) {
+		for(auto levelIt = levels.begin() + emptyLevelHeight + 1; levelIt < levels.begin() + maxHeight; levelIt++) {
+			assert(levelIt->active_vertices.empty());
+			int inactiveLevelSize = levelIt->inactive_vertices.size();
+			vertex_node* pVertexNode = levelIt->inactive_vertices.front();
+		        for(int i = 0; i < inactiveLevelSize; i++) {
+				vHeight[pVertexNode->id] = numVertices;
+				pVertexNode = pVertexNode->next;
+			}	
+			levelIt->inactive_vertices.clear();
+		}
+		maxHeight = emptyLevelHeight -1;
+		maxActiveHeight = emptyLevelHeight -1;
+	}
+
+
+
         void relabel(int vertex) {
-
-
-
-
-
+		int minRelabelHeight = numVertices;
+		edgeIterator eit, eitEnd, eitMinRelabel;
+		for(std::tie(eit, eitEnd) = outEdges(vertex); eit != eitEnd; eit++) {
+			int toVertex = eit->toVertex;
+			if(eit->residual && vHeight[toVertex] < minRelabelHeight) {
+				minRelabelHeight = vHeight[toVertex];
+				eitMinRelabel = eit;	
+			}
+		}
+		minRelabelHeight++;
+		if(minRelabelHeight < numVertices) {
+			vHeight[vertex] = minRelabelHeight;
+			vCurrentEdges[vertex].first = eitMinRelabel;
+			maxHeight = std::max(maxHeight, minRelabelHeight);
+		}
 	}
+
+		
+	capacity_t maximum_preflow() {
+		while(maxActiveHeight >= minActiveHeight) {
+
+			std::cout<< " Max active height " << maxActiveHeight <<" Min active height " << minActiveHeight << std::endl;
+			if(levels[maxActiveHeight].active_vertices.empty()) {
+				maxActiveHeight--;
+			}
+			else{
+				vertex_node* pVertexNode = levels[maxActiveHeight].active_vertices.pop();
+				std::cout << " Going to discharge " << pVertexNode->id << std::endl;
+				discharge(pVertexNode->id);
+			}
+		}
+		return vExcess[sink];
+	}
+
+
+
 
 	void push(int fromVertex, edgeIterator eit) {
 		int toVertex = eit->toVertex;
@@ -651,7 +698,7 @@ class push_relabel {
 		  
 		  int size = levels[i].active_vertices.size();
 		  std::cout <<"Active list :" << size << " elements" << std::endl;
-		  vertex_t* pVertexNode  = levels[i].active_vertices.front();
+		  vertex_node* pVertexNode  = levels[i].active_vertices.front();
 
   		  for(int n = 0; n < size; n++){
 		     std::cout << pVertexNode->id  << " ";
@@ -674,11 +721,11 @@ class push_relabel {
 
 
         struct level_t {
-		linked_list<vertex_t> active_vertices;
-		linked_list<vertex_t> inactive_vertices;
+		linked_list<vertex_node> active_vertices;
+		linked_list<vertex_node> inactive_vertices;
 	};
 	std::vector<level_t> levels;
-	std::vector<vertex_t> vertices;
+	std::vector<vertex_node> vertices;
 
 	std::vector<int> vHeight;
 	std::vector<capacity_t> vExcess;
@@ -1019,7 +1066,8 @@ compressed_matrix::CompressedMatrix<long long int> maxFlow(const compressed_matr
 	//mexPrintf("inside maxFlow int version: Time elapsed_constructing_graph_for_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
 
-	push_relabel_max_flow(g, s, t);
+   	long long int flowValueBoost = push_relabel_max_flow(g, s, t);
+	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	curr_2 = clock();
 	printf("inside maxFlow int version: Time elapsed_for_boost_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1649,7 +1697,8 @@ std::vector<std::pair<int, int> > applyImplication(const compressed_matrix::Comp
 	//mexPrintf("inside applyImplication int version: Time elapsed_building_graph: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
 
-	push_relabel_max_flow(g, s, t);
+	long long int flowValueBoost =  push_relabel_max_flow(g, s, t);
+	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	//curr_2 = clock();
 	//mexPrintf("inside applyImplication int version: Time elapsed_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1990,7 +2039,9 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      pushRelab.global_relabel();
      pushRelab.printLevels();
-
+    
+     long long int preflow = pushRelab.maximum_preflow();
+     std::cout <<"Preflow from written code : " << preflow <<std::endl;
 
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
