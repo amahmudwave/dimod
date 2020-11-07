@@ -114,10 +114,10 @@ public:
 template <class capacity_t>
 class ImplicationNetwork {
 	public:
-	template <class BQM>
-        ImplicationNetwork(BQM& bqm) {
+	template <class PosiformInfo>
+        ImplicationNetwork(PosiformInfo& posiform) {
 
-		numVariables = bqm.getNumVariables();
+		numVariables = posiform.getNumVariables();
 		numVertices = 2 * numVariables + 2;
 		source = numVariables;
 		sink = 2 * numVariables + 1;
@@ -129,7 +129,7 @@ class ImplicationNetwork {
 		assert(sink == complement(source));
 		assert(source == complement(sink));
  
-		int numLinear = bqm.getNumLinear();
+		int numLinear = posiform.getNumLinear();
 		adjList[source].reserve(numLinear);
 		adjList[sink].reserve(numLinear);
 	        sizeEstimates[source] = numLinear;
@@ -143,8 +143,8 @@ class ImplicationNetwork {
 	        // in which v contributes + 1 due to the linear term.
                 for(int u = 0; u <numVariables; u++) {
 		  int uComp = complement(u);
-		  int numEntries = bqm.getNumQuadratic(u);
-		  auto linear = bqm.getLinear(u);
+		  int numEntries = posiform.getNumQuadratic(u);
+		  auto linear = posiform.getLinear(u);
 		  if(linear) numEntries++;
 		  adjList[u].reserve(numEntries);
 		  adjList[uComp].reserve(numEntries);
@@ -157,12 +157,13 @@ class ImplicationNetwork {
 		 	createImplicationNetworkEdges(source, u, -linear);
 		  } 
 
-		  auto quadraticSpan = bqm.getQuadratic(u);
+		  auto quadraticSpan = posiform.getQuadratic(u);
 		  auto it = quadraticSpan.first;
                   auto itEnd = quadraticSpan.second;
                   for(; it != itEnd; it++){
-                     auto bias =  bqm.convertToLL(it->second);
-		     int v = bqm.getMappedVariable(it->first);
+                     auto bias =  posiform.convertToLL(it->second);
+		     // Convert the bqm variable to posiform one. 
+		     int v = posiform.getMappedVariable(it->first);
 		     if(bias > 0) {
                         createImplicationNetworkEdges(u, complement(v), bias);
 		     } else if ( bias < 0) {
@@ -1898,8 +1899,6 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
      pi.print();
-
-     std::cout << "Size of Implication Node without type : " << sizeof(ImplicationEdge<long long int>) << std::endl;
 
      ImplicationNetwork<long long int> implicationNet(pi);
      implicationNet.print();
