@@ -407,11 +407,11 @@ class push_relabel {
 		   edgeIterator it, itEnd;
 		   for(std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
 			int toVertex = it->toVertex;
-			std::cout << " Parent " << v_parent << " " << children_height -1 << std::endl;
+			//std::cout << " Parent " << v_parent << " " << children_height -1 << std::endl;
 			if(adjList[toVertex][it->revEdgeIdx].residual && _vertices[toVertex].height == numVertices)
 			{
 
-				std::cout << " Child " << toVertex << " " << children_height  << std::endl;
+				//std::cout << " Child " << toVertex << " " << children_height  << std::endl;
 				_vertices[toVertex].height = children_height;
 				maxHeight = std::max(maxHeight, children_height);
 				if(_vertices[toVertex].excess > 0){
@@ -517,13 +517,13 @@ class push_relabel {
 	capacity_t maximum_preflow() {
 		while(maxActiveHeight >= minActiveHeight) {
 
-			std::cout<< " Max active height " << maxActiveHeight <<" Min active height " << minActiveHeight << std::endl;
+			// std::cout<< " Max active height " << maxActiveHeight <<" Min active height " << minActiveHeight << std::endl;
 			if(levels[maxActiveHeight].active_vertices.empty()) {
 				maxActiveHeight--;
 			}
 			else{
 				vertex_node_t* pVertexNode = levels[maxActiveHeight].active_vertices.pop();
-				std::cout << " Going to discharge " << pVertexNode->id << " at height " << _vertices[pVertexNode->id].height << std::endl;
+				//std::cout << " Going to discharge " << pVertexNode->id << " at height " << _vertices[pVertexNode->id].height << std::endl;
 				discharge(pVertexNode->id);
 			}
 		}
@@ -1785,10 +1785,10 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 	curr_1 = curr_2;
 
 	Posiform p = BQPToPosiform(uTriQLLI);
-	printPosiform(p);
+	//printPosiform(p);
 	curr_2 = clock();
 	printf("Time elapsed_BQPToPosiform: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-	curr_1 = curr_2;
+	curr_1 = clock();
 	printf("Method : %d \n " , method );
 	if (method == 1)
 	{
@@ -1897,19 +1897,32 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	}
       }
 
+	clock_t curr_1 = clock();
+	clock_t curr_2;
+
      PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
-     pi.print();
+     //pi.print();
+     curr_2 = clock();
+     printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+     curr_1 = clock();
 
      ImplicationNetwork<long long int> implicationNet(pi);
-     implicationNet.print();
+     //implicationNet.print();
+     curr_2 = clock();
+     printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+
     
+     curr_1 = clock();
      push_relabel<ImplicationEdge<long long int>> pushRelab(implicationNet.adjList, implicationNet.source, implicationNet.sink);
-     implicationNet.print();
+     //implicationNet.print();
 
      pushRelab.global_relabel();
-     pushRelab.printLevels();
+     //pushRelab.printLevels();
     
      long long int preflow = pushRelab.maximum_preflow();
+      curr_2 = clock();
+     printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
 
      printf(" Calling processed map based function \n"); 
