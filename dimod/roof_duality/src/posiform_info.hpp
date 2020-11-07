@@ -18,34 +18,53 @@
 #ifndef POSIFORM_INFORMATION_HPP_INCLUDED
 #define POSIFORM_INFORMATION_HPP_INCLUDED
 
-
 #include <iostream>
 #include <unordered_map>
 #include <vector>
 
-// This class should contain all the information to recreate
+// This class should contain all the information needed to recreate
 // a posiform corresponding to a BQM. The intention is to reduce
-// the memory footprint as much as possible. All bias values
-// must be multiplied by the ratio before using. Not storing
-// the results to avoid extra O(N^2) storage.
+// the memory footprint as much as possible, thus requires some
+// processing before the stored data can be used. 
+//
+// If linear bias for variable X_i is negative with value -L
+// it means in the posiform we have the term  L * X_0 * X_i' 
+// (X_i' being the complement of X_i)
+// 
+// If a quadratic bias between X_i, X_j is negative with value -L
+// with i < j it means in the posiform we have the term L*X_i*X_j'
+// (X_i' being the complement of X_i)
+//
+// For each variable X_i the posiform keeps the iterators in the
+// provided bqm for biases starting from X_j, (j>i) to X_n.
+//
+// The linear biases are stored in integer format and can be used
+// directly. But the quadratic biases are not stored, instead
+// the iterators in the qubo are stored, thus the convertTo**
+// function must be applied first on the biases before use. 
+//
+// Note the number of variables and biases exposed should correspond
+// to the integer version of the qubo matrix and may be different
+// to the numbers corresponding to the floating point based numbers
+// as many biases may be flushed to zeroes. 
 template <class BQM>
 class PosiformInfo {
 	public: 
 		using bias_type = typename BQM::bias_type;
+		using quadratic_iterator_type = typename BQM::const_outvars_iterator;
 		using variable_type = typename BQM::variable_type;
-		using t_quadIter = typename BQM::const_outvars_iterator;
 
 		PosiformInfo(const BQM& bqm) {
-			numVars = bqm.num_variables();
-			linear.resize(numVars, 0);
-			quadraticIterators.resize(numVars);
-			numQuadratic.resize(numVars,0);
-			std::vector<bool> variableUsed(numVars, false);
+			_num_bqm_variables = bqm.num_variables();
+			_linear_integer_biases.resize(_num_bqm_variables, 0);
+			quadraticIterators.resize(_num_bqm_variables);
+			numQuadratic.resize(_num_bqm_variables,0);
+			std::vector<bool> variableUsed(_num_bqm_variables, false);
 			
-			numLinear = 0;
+			_num_linear_integers = 0;
 			maxAbsValue = 0;
 			cnst = 0;
-			for(int i = 0; i < numVars; i++) {
+			for(int i = 0; i < _num_bqm_variables; i++) {
 				if(maxAbsValue < std::fabs(bqm.linear(i))) {
 					maxAbsValue = std::fabs(bqm.linear(i));
 				}
@@ -72,8 +91,8 @@ class PosiformInfo {
 			// TODO Ideally we will take a second pass to find maxAbsValue
 			// considering the array of linears. And then recalculate linears
 			// and the constant. 
-			for(int i = 0; i < numVars; i++){
-				linear[i] = convertToLL(bqm.linear(i));
+			for(int i = 0; i < _num_bqm_variables; i++){
+				_linear_integer_biases[i] = convertToLL(bqm.linear(i));
 			        auto it = quadraticIterators[i].first;
 				auto itEnd = quadraticIterators[i].second;
 				int numBiases = 0;
@@ -84,7 +103,7 @@ class PosiformInfo {
 						variableUsed[it->first] = true;
        						numQuadratic[it->first]++;
        						if( biasQuadLL < 0) {
-       							linear[i]+= biasQuadLL;
+       							_linear_integer_biases[i]+= biasQuadLL;
        						}
 						numBiases++;
 					}
@@ -92,17 +111,17 @@ class PosiformInfo {
 				numQuadratic[i]+= numBiases;
 			}
 			
-			for(int i = 0; i < linear.size(); i++){
-			       if(linear[i]) {
+			for(int i = 0; i < _linear_integer_biases.size(); i++){
+			       if(_linear_integer_biases[i]) {
 				       variableUsed[i] = true;
-				       numLinear++;
+				       _num_linear_integers++;
 			       }
-			       if(linear[i] < 0) cnst += linear[i];
+			       if(_linear_integer_biases[i] < 0) cnst += _linear_integer_biases[i];
 			}
 			
-			usedVariables.reserve(numVars);
+			usedVariables.reserve(_num_bqm_variables);
 			numUsedVars = 0;
-			for(int i = 0; i < numVars; i++) {
+			for(int i = 0; i < _num_bqm_variables; i++) {
 				if(variableUsed[i]) {
 					usedVariables.push_back(i);
 					variableMap.insert({i, numUsedVars});
@@ -114,18 +133,18 @@ class PosiformInfo {
 		}
 
 		void print() {
-			std::cout <<"Posiform Information : " << numVars << endl;
-			std::cout <<"Num Variables : " << numVars << endl;
+			std::cout <<"Posiform Information : " << _num_bqm_variables << endl;
+			std::cout <<"Number of BQM Variables : " << _num_bqm_variables << endl;
 			std::cout <<"Constant : " << cnst << std::endl;
-			std::cout <<"maxAbsValue : " << maxAbsValue << std::endl;
-			std::cout << "Linear : " << std::endl;
-			for(int i =0; i < numVars; i++) {
-				if(linear[i])
-					std::cout << variableMap[i] <<" " <<  i <<" " << linear[i] << std::endl;
+			std::cout <<"Maximum Absolute Value : " << maxAbsValue << std::endl;
+			std::cout <<"Linear : " << std::endl;
+			for(int i =0; i < _num_bqm_variables; i++) {
+				if(_linear_integer_biases[i])
+					std::cout << variableMap[i] <<" " <<  i <<" " << _linear_integer_biases[i] << std::endl;
 		        }
 
 			std::cout << "Quadratic : " << std::endl;
-			for(int i =0; i < numVars; i++) {
+			for(int i =0; i < _num_bqm_variables; i++) {
 	         		auto it = quadraticIterators[i].first;
 				auto itEnd = quadraticIterators[i].second;
 				for(; it != itEnd; it++){
@@ -142,12 +161,12 @@ class PosiformInfo {
 		}
 
 		inline int getNumVariables() { return numUsedVars; }
-		inline int getNumLinear() { return numLinear; }
-		inline long long int getLinear(int i) { return linear[usedVariables[i]]; }
+		inline int getNumLinear() { return _num_linear_integers; }
+		inline long long int getLinear(int i) { return _linear_integer_biases[usedVariables[i]]; }
 		inline int getNumQuadratic(int i) { return numQuadratic[usedVariables[i]]; }
 		inline int getMappedVariable(int i) { return variableMap[i]; }
 
-		inline std::pair<t_quadIter, t_quadIter> getQuadratic(int i) { 
+		inline std::pair<quadratic_iterator_type, quadratic_iterator_type> getQuadratic(int i) { 
 			return quadraticIterators[usedVariables[i]];
 		}
 
@@ -156,16 +175,16 @@ class PosiformInfo {
 		}
 
 	private:
-		std::vector<std::pair<t_quadIter,t_quadIter>> quadraticIterators;
-		std::vector<long long int> linear;
+		std::vector<std::pair<quadratic_iterator_type,quadratic_iterator_type>> quadraticIterators;
+		std::vector<long long int> _linear_integer_biases;
 		std::vector<int> numQuadratic;
 		std::vector<int> usedVariables;
 		std::unordered_map<int, int> variableMap;
 		long long int cnst;
 		double maxAbsValue;
 		double ratio;
-		int numVars;
-		int numLinear;
+		int _num_bqm_variables;
+		int _num_linear_integers;
 		int numUsedVars;
 };
 
