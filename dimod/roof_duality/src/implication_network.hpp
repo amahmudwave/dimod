@@ -25,10 +25,10 @@
 // on the on the sign of the coefficient. The index of the symmetric edge for
 // X_i connecting to X_j' is the index to the edge in the edge list of X_j that
 // connects to X_i'. It is needed for the step where we average the residual
-// capacities of the edges to get the symmetric residual graph. (We will skip
-// the division by 2, to avoid numerical errors). For more details see : Boros,
-// Endre & Hammer, Peter & Tavares, Gabriel. (2006). Preprocessing of
-// unconstrained quadratic binary optimization. RUTCOR Research Report.
+// capacities of the edges to get the symmetric residual graph.
+// For more details see : Boros, Endre & Hammer, Peter & Tavares, Gabriel.
+// (2006). Preprocessing of unconstrained quadratic binary optimization. RUTCOR
+// Research Report.
 template <typename capacity_t> class ImplicationEdge {
 public:
   typedef capacity_t capacity_type;
@@ -51,6 +51,7 @@ public:
 template <class capacity_t> class ImplicationNetwork {
 public:
   template <class PosiformInfo> ImplicationNetwork(PosiformInfo &posiform);
+  capacity_t makeResidualSymmetric();
   void print();
   int getSource() { return _source; }
   int getSink() { return _sink; }
@@ -145,6 +146,90 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
   }
 }
 
+template <class capacity_t>
+capacity_t ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
+#pragma omp parallel for
+  for (int i = 0, i_end = _adjacency_list.size(); i < i_end; i++) {
+    for (int j = 0, j_end = _adjacency_list[i].size(); j < j_end; j++) {
+      int from_vertex = i;
+      int from_vertex_complement = complement(from_vertex);
+      int from_vertex_base = std::min(from_vertex, from_vertex_complement);
+      int to_vertex = _adjacency_list[i][j].toVertex;
+      int to_vertex_complement = complement(to_vertex);
+      int to_vertex_base = std::min(to_vertex, to_vertex_complement);
+      // We don not want to process the symmetric edges twice, we pick the one
+      // that starts from the smaller vertex number when complementation is not
+      // taken into account.
+      if (to_vertex_base > from_vertex_base) {
+        int symmetric_edge_idx = _adjacency_list[i][j].revEdgeIdx;
+        capacity_t edge_residual = _adjacency_list[i][j].residual;
+        capacity_t symmetric_edge_residual =
+            _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual;
+        // The paper states that we should average the residuals and assign the
+        // average, but to avoid underflow we do not divide by two but to keep
+        // the flow valid we multiply the capacities by 2. The doubling of
+        // capacity is not needed for the later steps in the algorithm, but will
+        // help us verify if the symmetric flow is a valid flow or not.
+        capacity_t residual_sum = edge_residual + symmetric_edge_residual;
+        _adjacency_list[i][j].residual = residual_sum;
+        _adjacency_list[i][j].capacity *= 2;
+        _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual =
+            residual_sum;
+        _adjacency_list[to_vertex_complement][symmetric_edge_idx].capacity *= 2;
+      }
+    }
+  }
+
+  capacity_t source_outflow = 0;
+  for (int i = 0; i < _adjacency_list[_source].size(); i++)
+    source_outflow += _adjacency_list[_source][i].capacity -
+                      _adjacency_list[_source][i].residual;
+  return source_outflow / 2;
+}
+/*
+  template <class capacity_t>
+  bool ImplicationNetwork::is_residual_graph_valid() {
+    bool symmetric_residual_valid = true;
+    std::vector<std::pair<int, int>> problem_edges;
+    #pragma omp parallel for
+    for (int i = 0, i_end = adjList.size(); i < i_end i++) {
+      for (int j = 0, j_end = adjList[i].size(); j < j_end j++) {
+        int reverse_edge_idx = adjList[i][j].revEdgeIdx;
+        capacity_t edge_residual = adjList[i][j].residual;
+        capacity_t reverse_edge_residual =
+            adjList[j][reverse_edge_idx].residual;
+        capacity_t edge_capacity = adjList[i][j].residual;
+        capacity_t reverse_edge_capacity =
+            adjList[j][reverse_edge_idx].residual;
+        bool capacity_valid =
+            edge_capacity ? (!reverse_edge_capacity) : reverse_edge_capacity;
+        bool flow_valid = ((edge_residual + reverse_edge_residual) ==
+                           (edge_capacity + reverse_edge_capacity));
+        if (!flow_valid || !capacity_valid) {
+          #pragma omp critical
+          {
+            symmetric_residual_valid = false;
+            problem_edges.push_back({i, j});
+          }
+        }
+      }
+    }
+
+    for (int i = 0, i_end = problem_edges.size(); i++) {
+      u = problem_edges[i].first;
+      v = adjList[u][problem_edges[i].second].toVertex;
+      std::cout << "Invalid flow/capacity value. "
+                << std::endl;
+      std::cout << i << " --> " << adjList[i][j].toVertex << " : "
+                << edge_residual << std::endl;
+      std::cout << j_complement << " --> " << complement(i) << " : "
+                << symmetric_edge_residual << std::endl;
+      return false;
+    }
+
+    return is_symmetric_residual_valid;
+  }
+*/
 template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
   std::cout << std::endl;
   std::cout << "Implication Graph Information : " << std::endl;

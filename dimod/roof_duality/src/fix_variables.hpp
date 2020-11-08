@@ -1792,10 +1792,16 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      //pushRelab.printLevels();
     
      long long int preflow = pushRelab.maximum_preflow();
-      curr_2 = clock();
+     curr_2 = clock();
      printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
+
+     curr_1 = clock();
+     long long int symflow =  implicationNet.makeResidualSymmetric();
+     curr_2 = clock();
+     std::cout << "Symmetric flow / 2" << symflow << std::endl; 
+     printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
