@@ -32,13 +32,47 @@
 template <typename capacity_t> class ImplicationEdge {
 public:
   typedef capacity_t capacity_type;
-  ImplicationEdge(int toVertex, capacity_t capacity)
-      : toVertex(toVertex), capacity(capacity), residual(capacity) {}
+  ImplicationEdge(int toVertex, capacity_t capacity,
+                  capacity_t reverse_capacity)
+      : toVertex(toVertex), residual(capacity) {
+    assert((!capacity || !reverse_capacity) &&
+           "Either capacity or reverse edge capacity must be zero.");
+    _encoded_capacity = (!capacity) ? -reverse_capacity : capacity;
+  }
   int toVertex;
   int revEdgeIdx;
   int symmEdgeIdx;
-  capacity_t capacity;
   capacity_t residual;
+
+private:
+  // The value of capacity is not needed per se to compute a max-flow but is
+  // needed for the purpose of verifying it. We use the encoded capacity to
+  // store the capacity of an edge, but when it is a residual/reverse edge,
+  // instead of saving 0 we save the negative of the original edge, this way we
+  // can both verify max-flow and also return the residual capacity of the edge
+  // itself and also its reverse/residual without hopping through memory.
+  // This is not the best software engineering practice, but is needed to save
+  // memory. Current size is 32 byte when long long int is used for capacity
+  // and 2 such edges fit in a typical cache line, adding 8 bytes will not allow
+  // that to be possible.
+  capacity_t _encoded_capacity;
+
+public:
+  inline capacity_t getFlow() {
+    return ((_encoded_capacity > 0) ? (_encoded_capacity - residual)
+                                    : -residual);
+  }
+  inline capacity_t getCapacity() {
+    return ((_encoded_capacity > 0) ? _encoded_capacity : 0);
+  }
+
+  inline capacity_t getReverseEdgeResidual() {
+    return ((_encoded_capacity > 0) ? (_encoded_capacity - residual)
+                                    : (-_encoded_capacity - residual));
+  }
+
+  // Needed for the purpose of making residual network symmetric.
+  void scaleCapacity(int scale) { _encoded_capacity *= scale; }
 };
 
 // The implication graph used in the paper Boros, Endre & Hammer, Peter &
@@ -172,17 +206,18 @@ capacity_t ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
         // help us verify if the symmetric flow is a valid flow or not.
         capacity_t residual_sum = edge_residual + symmetric_edge_residual;
         _adjacency_list[i][j].residual = residual_sum;
-        _adjacency_list[i][j].capacity *= 2;
         _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual =
             residual_sum;
-        _adjacency_list[to_vertex_complement][symmetric_edge_idx].capacity *= 2;
+        _adjacency_list[i][j].scaleCapacity(2);
+        _adjacency_list[to_vertex_complement][symmetric_edge_idx].scaleCapacity(
+            2);
       }
     }
   }
 
   capacity_t source_outflow = 0;
   for (int i = 0; i < _adjacency_list[_source].size(); i++)
-    source_outflow += _adjacency_list[_source][i].capacity -
+    source_outflow += _adjacency_list[_source][i].getCapacity() -
                       _adjacency_list[_source][i].residual;
   return source_outflow / 2;
 }
@@ -271,12 +306,14 @@ void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
     int from, int to, capacity_t capacity) {
   int from_complement = complement(from);
   int to_complement = complement(to);
-  _adjacency_list[from].emplace_back(ImplicationEdge<capacity_t>(to, capacity));
-  _adjacency_list[to].emplace_back(ImplicationEdge<capacity_t>(from, 0));
+  _adjacency_list[from].emplace_back(
+      ImplicationEdge<capacity_t>(to, capacity, 0));
+  _adjacency_list[to].emplace_back(
+      ImplicationEdge<capacity_t>(from, 0, capacity));
   _adjacency_list[to_complement].emplace_back(
-      ImplicationEdge<capacity_t>(from_complement, capacity));
+      ImplicationEdge<capacity_t>(from_complement, capacity, 0));
   _adjacency_list[from_complement].emplace_back(
-      ImplicationEdge<capacity_t>(to_complement, 0));
+      ImplicationEdge<capacity_t>(to_complement, 0, capacity));
   fillLastOutEdgeReferences(from, to);
   fillLastOutEdgeReferences(to, from);
   fillLastOutEdgeReferences(to_complement, from_complement);

@@ -280,7 +280,7 @@ class push_relabel {
 		   for(std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
 			int toVertex = it->toVertex;
 			//std::cout << " Parent " << v_parent << " " << children_height -1 << std::endl;
-			if(adjList[toVertex][it->revEdgeIdx].residual && _vertices[toVertex].height == numVertices)
+			if(it->getReverseEdgeResidual() && _vertices[toVertex].height == numVertices)
 			{
 
 				//std::cout << " Child " << toVertex << " " << children_height  << std::endl;
@@ -1800,7 +1800,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_1 = clock();
      long long int symflow =  implicationNet.makeResidualSymmetric();
      curr_2 = clock();
-     std::cout << "Symmetric flow / 2" << symflow << std::endl; 
+     std::cout << "Symmetric flow/2 " << symflow << std::endl; 
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      printf(" Calling processed map based function \n"); 
