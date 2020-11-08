@@ -26,6 +26,7 @@
 #include "dimod/adjmapbqm.h"
 #include "dimod/adjvectorbqm.h"
 #include "posiform_info.hpp"
+#include "implication_network.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -98,135 +99,6 @@ void printPosiform(Posiform& pos) {
 		       << pos.quadratic[i].second << std::endl;
      }
 }
-
-template <typename capacity_t>
-class  ImplicationEdge {
-public:
-    typedef capacity_t capacity_type;
-    ImplicationEdge(int toVertex, capacity_t capacity): toVertex(toVertex), residual(capacity) { }
-    int toVertex;
-    int revEdgeIdx;
-    int symmEdgeIdx;
-    capacity_t residual;
-};
-
-
-template <class capacity_t>
-class ImplicationNetwork {
-	public:
-	template <class PosiformInfo>
-        ImplicationNetwork(PosiformInfo& posiform) {
-
-		numVariables = posiform.getNumVariables();
-		numVertices = 2 * numVariables + 2;
-		source = numVariables;
-		sink = 2 * numVariables + 1;
-		adjList.resize(2 * numVariables + 2);
-		sizeEstimates.resize(numVertices, 0); 
-
-		// After this point complement function 
-		// should work.
-		assert(sink == complement(source));
-		assert(source == complement(sink));
- 
-		int numLinear = posiform.getNumLinear();
-		adjList[source].reserve(numLinear);
-		adjList[sink].reserve(numLinear);
-	        sizeEstimates[source] = numLinear;
-		sizeEstimates[sink] = numLinear;
-
-	        // There are reverse edges for each edge created
-	        // in the implication graph. Depending on the sign
-	        // of the bias, an edge may start from v or v' but
-	        // reverse edges makes the edges coming out of v and
-	        // v' both equal to the number of quadratic biases
-	        // in which v contributes + 1 due to the linear term.
-                for(int u = 0; u <numVariables; u++) {
-		  int uComp = complement(u);
-		  int numEntries = posiform.getNumQuadratic(u);
-		  auto linear = posiform.getLinear(u);
-		  if(linear) numEntries++;
-		  adjList[u].reserve(numEntries);
-		  adjList[uComp].reserve(numEntries);
-		  sizeEstimates[u] = numEntries;
-		  sizeEstimates[uComp] = numEntries;
-
-		  if(linear > 0) {
-			createImplicationNetworkEdges(source, uComp, linear);
-		  } else if ( linear < 0) {
-		 	createImplicationNetworkEdges(source, u, -linear);
-		  } 
-
-		  auto quadraticSpan = posiform.getQuadratic(u);
-		  auto it = quadraticSpan.first;
-                  auto itEnd = quadraticSpan.second;
-                  for(; it != itEnd; it++){
-                     auto bias =  posiform.convertToLL(it->second);
-		     // Convert the bqm variable to posiform one. 
-		     int v = posiform.getMappedVariable(it->first);
-		     if(bias > 0) {
-                        createImplicationNetworkEdges(u, complement(v), bias);
-		     } else if ( bias < 0) {
-                        createImplicationNetworkEdges(u, v, -bias);
-		     }
-                  }
-		}
-	}
-	
-	inline int complement( int v ) { 
-		if ( v <= numVariables)
-			return (v + numVariables + 1);
-		else 
-			return (v - numVariables - 1);
-	}
-
-	void fillLastOutEdgeReferences(int from, int to) {
-		auto& edge = adjList[from].back();
-	        edge.revEdgeIdx = adjList[to].size() - 1;
-		int symmetricFrom = complement(to);
-		edge.symmEdgeIdx = adjList[symmetricFrom].size() - 1;
-	}
-
-	void createImplicationNetworkEdges(int from, int to, capacity_t capacity) {
-		int fromComp = complement(from);	
-		int toComp  = complement(to);
-		adjList[from].emplace_back(ImplicationEdge<capacity_t>(to, capacity));
-		adjList[to].emplace_back(ImplicationEdge<capacity_t>(from, 0));
-		adjList[toComp].emplace_back(ImplicationEdge<capacity_t>(fromComp, capacity));
-		adjList[fromComp].emplace_back(ImplicationEdge<capacity_t>(toComp, 0));
-		fillLastOutEdgeReferences(from, to);
-		fillLastOutEdgeReferences(to, from);
-		fillLastOutEdgeReferences(toComp, fromComp);
-		fillLastOutEdgeReferences(fromComp, toComp);
-	}
-
-	void print() {
-		std::cout <<"Implication Graph Information : " << std::endl;
-		std::cout <<"Num Variables : " << numVariables << std::endl;
-		std::cout <<"Num Vertices : " << numVertices << std::endl;
-	        for(int i = 0; i < adjList.size(); i++) {
-		  if(adjList[i].size() != sizeEstimates[i]) {
- 		    std::cout <<"Inaccurate size estimate for out edges for " << i <<" " << sizeEstimates[i] << std::endl;
-		  }
-
-		  for(int j = 0; j < adjList[i].size(); j++) {
-		    auto& node = adjList[i][j];
-		    std::cout << "{ " << i << " --> " << node.toVertex << " " << node.residual << " ";
-		    std::cout <<  node.revEdgeIdx << " " << node.symmEdgeIdx << " } " << std::endl;	    
-                  }
-		  std::cout << endl;
-		  assert(adjList[i].size() == sizeEstimates[i]);
-		}	
-	}
-
-	vector<vector<ImplicationEdge<capacity_t>>> adjList;
-	// TODO : Verify size estimates are correct, for debugging, remove it. 
-	vector<int> sizeEstimates;
-	int numVariables;
-	int numVertices;
-	int source;
-	int sink;
-};
 
 template <typename node>
     class linked_list
@@ -1900,7 +1772,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	clock_t curr_1 = clock();
 	clock_t curr_2;
 
-     PosiformInfo<dimod::AdjVectorBQM<V,B>> pi(bqm);
+     PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
      //pi.print();
      curr_2 = clock();
      printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1913,7 +1785,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
     
      curr_1 = clock();
-     push_relabel<ImplicationEdge<long long int>> pushRelab(implicationNet.adjList, implicationNet.source, implicationNet.sink);
+     push_relabel<ImplicationEdge<long long int>> pushRelab(implicationNet.getAdjacencyList(), implicationNet.getSource(), implicationNet.getSink());
      //implicationNet.print();
 
      pushRelab.global_relabel();
