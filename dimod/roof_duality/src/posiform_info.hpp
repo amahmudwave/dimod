@@ -168,8 +168,8 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   // Consider the upper limit of max-flow in implication graph for calculating
   // ratio conversion ratio.
 
-  // if( _max_absolute_value < posiform_linear_sum_non_integral) {
-  //	_max_absolute_value = posiform_linear_sum_non_integral;
+  // if( _max_absolute_value < _posiform_linear_sum_non_integral) {
+  //	_max_absolute_value = _posiform_linear_sum_non_integral;
   // }
 
   assert(_max_absolute_value != 0);
