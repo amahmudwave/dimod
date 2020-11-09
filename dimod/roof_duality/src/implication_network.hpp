@@ -85,10 +85,17 @@ public:
 template <class capacity_t> class ImplicationNetwork {
 public:
   template <class PosiformInfo> ImplicationNetwork(PosiformInfo &posiform);
-  capacity_t makeResidualSymmetric();
+
+  void makeResidualSymmetric();
+
   void print();
+  
   int getSource() { return _source; }
+
   int getSink() { return _sink; }
+
+  capacity_t getCurrentFlow();
+
   vector<vector<ImplicationEdge<capacity_t>>> &getAdjacencyList() {
     return _adjacency_list;
   }
@@ -180,9 +187,11 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
   }
 }
 
+// Make the residual network symmetric, by summing the residual capacities and
+// original capacities of the implicaiton network. Here we multiply the
+// capacities by 2, since the symmetric edges have same capacity.
 template <class capacity_t>
-capacity_t ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
-#pragma omp parallel for
+void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
   for (int i = 0, i_end = _adjacency_list.size(); i < i_end; i++) {
     for (int j = 0, j_end = _adjacency_list[i].size(); j < j_end; j++) {
       int from_vertex = i;
@@ -214,13 +223,8 @@ capacity_t ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
       }
     }
   }
-
-  capacity_t source_outflow = 0;
-  for (int i = 0; i < _adjacency_list[_source].size(); i++)
-    source_outflow += _adjacency_list[_source][i].getCapacity() -
-                      _adjacency_list[_source][i].residual;
-  return source_outflow / 2;
 }
+
 /*
   template <class capacity_t>
   bool ImplicationNetwork::is_residual_graph_valid() {
@@ -288,6 +292,15 @@ template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
     std::cout << endl;
     assert(_adjacency_list[i].size() == _size_estimates[i]);
   }
+}
+
+template <class capacity_t>
+capacity_t ImplicationNetwork<capacity_t>::getCurrentFlow() {
+  capacity_t source_outflow = 0;
+  for (int i = 0; i < _adjacency_list[_source].size(); i++)
+    source_outflow += _adjacency_list[_source][i].getCapacity() -
+                      _adjacency_list[_source][i].residual;
+  return source_outflow;
 }
 
 template <class capacity_t>

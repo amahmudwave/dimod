@@ -168,9 +168,9 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   // Consider the upper limit of max-flow in implication graph for calculating
   // ratio conversion ratio.
 
-  // if( _max_absolute_value < _posiform_linear_sum_non_integral) {
-  //	_max_absolute_value = _posiform_linear_sum_non_integral;
-  // }
+  if (_max_absolute_value < _posiform_linear_sum_non_integral) {
+    _max_absolute_value = _posiform_linear_sum_non_integral;
+  }
 
   assert(_max_absolute_value != 0);
   _bias_conversion_ratio =
@@ -178,11 +178,13 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
       _max_absolute_value;
 
   // TODO: We should be removing this if we consider the sum of the linear
-  // biases as mentioned above, but we may divide by 2 to be safe. We must not
-  // clamp the ratio to 1 as it is done now.
-  _bias_conversion_ratio /= static_cast<double>(1LL << 10);
-  if (_bias_conversion_ratio < 1)
-    _bias_conversion_ratio = 1;
+  // biases as mentioned above, but should  divide by 2 since we do not divide
+  // by 2 when we make the residual network symmetric to avoid underflow, in
+  // that step the total flow is effectively doubled along with capacities. We
+  // must not clamp the ratio to 1 as it is done now.
+  _bias_conversion_ratio /= 2; // static_cast<double>(1LL << 10);
+                               // if (_bias_conversion_ratio < 1)
+                               //   _bias_conversion_ratio = 1;
 
   _bias_conversion_ratio_limit =
       static_cast<double>(std::numeric_limits<coefficient_type>::max()) /

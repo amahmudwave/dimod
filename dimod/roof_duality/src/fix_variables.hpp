@@ -1798,9 +1798,9 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
 
      curr_1 = clock();
-     long long int symflow =  implicationNet.makeResidualSymmetric();
+     implicationNet.makeResidualSymmetric();
      curr_2 = clock();
-     std::cout << "Symmetric flow/2 " << symflow << std::endl; 
+     std::cout << "Symmetric flow/2 " << implicationNet.getCurrentFlow()/2 << std::endl; 
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      printf(" Calling processed map based function \n"); 
