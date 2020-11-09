@@ -19,7 +19,10 @@
 #ifndef POSIFORM_INFORMATION_HPP_INCLUDED
 #define POSIFORM_INFORMATION_HPP_INCLUDED
 
+#include <algorithm>
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <unordered_map>
 #include <vector>
 
