@@ -27,6 +27,7 @@
 #include "dimod/adjvectorbqm.h"
 #include "posiform_info.hpp"
 #include "implication_network.hpp"
+#include "helper_data_structures.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -100,108 +101,6 @@ void printPosiform(Posiform& pos) {
      }
 }
 
-template <typename node>
-    class linked_list
-    {
-        node _head = node { }, _tail = node { };
-        std::size_t _size { 0 };
-    public:
-        linked_list ( )
-        {
-            _head . next = &_tail;
-            _tail . prev = &_head;
-	    _size = 0;
-        }
-
-        node * pop ( ) noexcept
-        {
-            auto * ret = _head . next;
-            _head . next = _head . next -> next;
-            _head . next -> prev = &_head;
-            --_size;
-            return ret;
-        }
-
-        void push ( node * n ) noexcept
-        {
-            n -> next = &_tail;
-            n -> prev = _tail . prev;
-            _tail . prev -> next = n;
-            _tail . prev = n;
-            ++_size;
-        }
-
-        void push_front ( node * n ) noexcept
-        {
-            n -> next = _head . next;
-            n -> prev = &_head;
-            _head . next -> prev = n;
-            _head . next = n;
-            ++_size;
-        }
-
-        void erase ( node * n ) noexcept
-        {
-            n -> prev -> next = n -> next;
-            n -> next -> prev = n -> prev;
-            --_size;
-        }
-
-        node * front ( ) const noexcept
-        {
-            return _head . next;
-        }
-
-        node * back ( ) const noexcept
-        {
-            return _tail . prev;
-        }
-
-        bool empty ( ) const noexcept
-        {
-            return _size == 0;
-        }
-
-        void clear ( ) noexcept
-        {
-            _head . next = &_tail;
-            _tail . prev = &_head;
-            _size = 0;
-        }
-
-        std::size_t size ( ) const noexcept
-        {
-            return _size;
-        }
-
-        void append_list ( linked_list & other ) noexcept
-        {
-            if ( other . empty () )
-                return;
-            auto other_head = other . front ();
-            auto other_tail = other . back ();
-            this -> back () -> next = other_head;
-            other_head -> prev = this -> back ();
-            _tail . prev = other_tail;
-            other_tail -> next = &_tail;
-            _size += other . size ();
-            other . clear ();
-        }
-    };
-
-template <class T>
-class vecQueue {
-	public:
-   vecQueue(int size) { front = 0; back = 0; data.resize(size); }
-   void reset () { front = 0; back = 0; }
-   void push(T val) { data[back++] = val;}
-   T pop() { return data[front++]; }
-   bool empty() { return (front == back); }
-   int front;
-   int back;
-   std::vector<T> data;
-};
-
 template <class EdgeType>
 class push_relabel {
 	public:
@@ -217,7 +116,7 @@ class push_relabel {
 	  vertex_node_t * prev;
 	};
 
-	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink), vertexQ(vecQueue<int>(adjList.size())) 
+	push_relabel(std::vector<std::vector<EdgeType>>& adjList, int source, int sink) : adjList(adjList), source(source), sink(sink), vertexQ(vector_based_queue<int>(adjList.size())) 
 	{
 		numGRelabels = 0;
 		numRelabels = 0;
@@ -467,12 +366,12 @@ class push_relabel {
 
 
         struct level_t {
-		linked_list<vertex_node_t> active_vertices;
-		linked_list<vertex_node_t> inactive_vertices;
+		preallocated_linked_list<vertex_node_t> active_vertices;
+		preallocated_linked_list<vertex_node_t> inactive_vertices;
 	};
 	std::vector<level_t> levels;
 	std::vector<vertex_node_t> _vertices;
-	vecQueue<int> vertexQ;
+	vector_based_queue<int> vertexQ;
 	std::vector<std::vector<EdgeType>>&  adjList;
 	std::vector<std::pair<edgeIterator, edgeIterator>> vCurrentEdges;
 	edge_size_t numEdges;

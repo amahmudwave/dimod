@@ -45,15 +45,6 @@ public:
     _data.resize(size);
   }
 
-  vector_based_queue(vector_based_queue<T> &&other) noexcept = default;
-
-  vector_based_queue<T> &
-  operator=(vector_based_queue<T> &&other) noexcept = default;
-
-  vector_based_queue(const vector_based_queue<T> &other) = delete;
-
-  vector_based_queue<T> &operator=(const vector_based_queue<T> &other) = delete;
-
   void push(T val) noexcept { _data[_back++] = val; }
 
   T pop() noexcept { return _data[_front++]; }
@@ -64,23 +55,15 @@ public:
 };
 
 // Linked list that uses preallocated nodes.
-template <typename node> class linked_list {
+template <typename node> class preallocated_linked_list {
   node _head = node{}, _tail = node{};
   std::size_t _size{0};
 
 public:
-  linked_list() {
+  preallocated_linked_list() {
     _head.next = &_tail;
     _tail.prev = &_head;
   }
-
-  linked_list(const linked_list &other) = delete;
-
-  linked_list(linked_list &&other) = delete;
-
-  linked_list &operator=(const linked_list &other) = delete;
-
-  linked_list &operator=(linked_list &&other) = delete;
 
   node *pop() noexcept {
     auto *ret = _head.next;
@@ -126,7 +109,7 @@ public:
 
   std::size_t size() const noexcept { return _size; }
 
-  void append_list(linked_list &other) noexcept {
+  void append_list(preallocated_linked_list &other) noexcept {
     if (other.empty())
       return;
     auto other_head = other.front();
