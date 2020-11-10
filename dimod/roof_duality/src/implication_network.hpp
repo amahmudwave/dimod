@@ -115,8 +115,6 @@ public:
 
   int getSink() { return _sink; }
 
-  capacity_t getCurrentFlow();
-
   vector<vector<ImplicationEdge<capacity_t>>> &getAdjacencyList() {
     return _adjacency_list;
   }
@@ -246,50 +244,6 @@ void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
   }
 }
 
-/*
-  template <class capacity_t>
-  bool ImplicationNetwork::is_residual_graph_valid() {
-    bool symmetric_residual_valid = true;
-    std::vector<std::pair<int, int>> problem_edges;
-    #pragma omp parallel for
-    for (int i = 0, i_end = adjList.size(); i < i_end i++) {
-      for (int j = 0, j_end = adjList[i].size(); j < j_end j++) {
-        int reverse_edge_idx = adjList[i][j].revEdgeIdx;
-        capacity_t edge_residual = adjList[i][j].residual;
-        capacity_t reverse_edge_residual =
-            adjList[j][reverse_edge_idx].residual;
-        capacity_t edge_capacity = adjList[i][j].residual;
-        capacity_t reverse_edge_capacity =
-            adjList[j][reverse_edge_idx].residual;
-        bool capacity_valid =
-            edge_capacity ? (!reverse_edge_capacity) : reverse_edge_capacity;
-        bool flow_valid = ((edge_residual + reverse_edge_residual) ==
-                           (edge_capacity + reverse_edge_capacity));
-        if (!flow_valid || !capacity_valid) {
-          #pragma omp critical
-          {
-            symmetric_residual_valid = false;
-            problem_edges.push_back({i, j});
-          }
-        }
-      }
-    }
-
-    for (int i = 0, i_end = problem_edges.size(); i++) {
-      u = problem_edges[i].first;
-      v = adjList[u][problem_edges[i].second].toVertex;
-      std::cout << "Invalid flow/capacity value. "
-                << std::endl;
-      std::cout << i << " --> " << adjList[i][j].toVertex << " : "
-                << edge_residual << std::endl;
-      std::cout << j_complement << " --> " << complement(i) << " : "
-                << symmetric_edge_residual << std::endl;
-      return false;
-    }
-
-    return is_symmetric_residual_valid;
-  }
-*/
 template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
   std::cout << std::endl;
   std::cout << "Implication Graph Information : " << std::endl;
@@ -313,15 +267,6 @@ template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
     std::cout << endl;
     assert(_adjacency_list[i].size() == _size_estimates[i]);
   }
-}
-
-template <class capacity_t>
-capacity_t ImplicationNetwork<capacity_t>::getCurrentFlow() {
-  capacity_t source_outflow = 0;
-  for (int i = 0; i < _adjacency_list[_source].size(); i++)
-    source_outflow += _adjacency_list[_source][i].getCapacity() -
-                      _adjacency_list[_source][i].residual;
-  return source_outflow;
 }
 
 template <class capacity_t>
