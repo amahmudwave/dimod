@@ -85,8 +85,7 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   }
 
   for (int i = 0; i < excess.size(); i++) {
-    if (i == source || i == sink)
-      continue;
+    if ((i == source) || (i == sink)) continue;
     if (excess[i]) {
       std::cout << "Excess flow of " << excess[i] << " in vertex : " << i
                 << std::endl;
@@ -95,7 +94,7 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   }
 
   if (excess[sink] != -excess[source]) {
-    std::cout << "Flow out of source is not equal to flow into sink"
+    std::cout << "Flow out of source is not equal to flow into sink."
               << std::endl;
     valid_flow = false;
   }
