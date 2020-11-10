@@ -52,7 +52,6 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   // access the data and verify if the flow constraints hold or not.
   for (int i = 0; i < adjList.size(); i++) {
     for (int j = 0; j < adjList[i].size(); j++) {
-      bool valid = true;
       int to_vertex = adjList[i][j].toVertex;
       int reverse_edge_index = adjList[i][j].revEdgeIdx;
       capacity_t edge_capacity = adjList[i][j].getCapacity();
@@ -61,29 +60,29 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
           adjList[to_vertex][reverse_edge_index].getCapacity();
       capacity_t reverse_edge_residual =
           adjList[to_vertex][reverse_edge_index].residual;
-      valid &=
-          (adjList[i][j].getReverseEdgeCapacity() == reverse_edge_capacity);
-      valid &=
-          (adjList[i][j].getReverseEdgeResidual() == reverse_edge_residual);
-      valid &= (edge_capacity >= 0);
-      valid &= (edge_residual >= 0);
+      bool valid_edge =
+          (adjList[i][j].getReverseEdgeCapacity() == reverse_edge_capacity) &&
+          (adjList[i][j].getReverseEdgeResidual() == reverse_edge_residual) &&
+          (edge_capacity >= 0) && (edge_residual >= 0);
       if (edge_capacity > 0) {
-        // Valid assumption for posiforms, since no term with two variables
-        // appear multiple times with different ordering of the variables. This
-        // assumption can be maintained with other graphs too.
-        valid &= (reverse_edge_capacity == 0);
-        valid &= (edge_residual <= edge_capacity);
-        valid &= ((edge_residual + reverse_edge_residual) == edge_capacity);
+        // Residual edge having capacity 0 is a alid assumption for posiforms,
+        // since no term with two variables appear multiple times with different
+        // ordering of the variables. This assumption can be maintained with
+        // other graphs too.
+        valid_edge = valid_edge && (reverse_edge_capacity == 0) &&
+                     (edge_residual <= edge_capacity) &&
+                     ((edge_residual + reverse_edge_residual) == edge_capacity);
+
         capacity_t flow = (edge_capacity - edge_residual);
         excess[i] -= flow;
         excess[to_vertex] += flow;
       }
-      if (!valid) {
+      if (!valid_edge) {
         std::cout << "Invalid Flow due to following edge pair :" << std::endl;
         adjList[i][j].print();
         adjList[to_vertex][reverse_edge_index].print();
       }
-      valid_flow &= valid;
+      valid_flow = valid_flow && valid_edge;
     }
   }
 
@@ -104,27 +103,58 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   }
 
   return {excess[sink], valid_flow};
-};
+}
 
-/*
-// Check if the flow value in a given graph represented as an adjacency list is
-// maximum or not.
+// Perform reverse breadth first search from a certain vertex, a depth of the
+// number of vertices means that vertex could not be reached from the
+// start_vertex, since the maximum depth can be equal to number of vertices -1.
 template <class EdgeType>
-EdgeType::capacity_type
-isFlowOptimal(std::vector<std::vector<EdgeType>> &adjList, int source,
-              int sink){
-
-};
+void reverseBreadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
+                          int start_vertex, std::vector<int>& depth_values) {
+  using capacity_t = typename EdgeType::capacity_type;
+  int num_vertices = adjList.size();
+  depth_values.resize(num_vertices, num_vertices);
+  depth_values[start_vertex] = 0;
+  vector_based_queue<int> vertexQ(num_vertices);
+  vertexQ.reset();
+  vertexQ.push(start_vertex);
+  while (!vertexQ.empty()) {
+    int v_parent = vertexQ.pop();
+    int children_height = depth_values[v_parent] + 1;
+    auto it = adjList[v_parent].begin();
+    auto itEnd = adjList[v_parent].end();
+    for (; it != itEnd; it++) {
+      int toVertex = it->toVertex;
+      if (it->getReverseEdgeResidual() &&
+          depth_values[toVertex] == num_vertices) {
+        depth_values[toVertex] = children_height;
+        vertexQ.push(toVertex);
+      }
+    }
+  }
+}
 
 // Check if the flow value in a given graph represented as an adjacency list is
 // a valid max-flow or not and also return the flow value.
 template <class EdgeType>
-std::pair<EdgeType::capacity_type, bool>
+std::pair<typename EdgeType::capacity_type, bool>
 isMaximumFlow(std::vector<std::vector<EdgeType>> &adjList, int source,
-              int sink){
+              int sink) {
 
-};
-*/
+  // If the flow follows the constraints of network flow.
+  auto validity_result = isFlowValid(adjList, source, sink);
+
+  // If the flow is a maximum flow, the source will be unreachable from the sink
+  // through a reverse breadth first search, meaning the source cannot reach the
+  // sink through any augmenting path.
+  std::vector<int> depth_values;
+  int num_vertices = adjList.size();
+  reverseBreadthFirstSearch(adjList, sink, depth_values);
+  return {
+    validity_result.first,
+        (validity_result.second && (depth_values[source] == num_vertices))
+  };
+}
 
 template <class EdgeType> class push_relabel {
 public:
