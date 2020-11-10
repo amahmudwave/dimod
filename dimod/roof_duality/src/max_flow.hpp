@@ -109,28 +109,75 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
 // number of vertices means that vertex could not be reached from the
 // start_vertex, since the maximum depth can be equal to number of vertices -1.
 template <class EdgeType>
-void reverseBreadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
-                          int start_vertex, std::vector<int>& depth_values) {
+void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
+                        int start_vertex, std::vector<int> &depth_values,
+                        bool reverse = false, bool print_result = false) {
   using capacity_t = typename EdgeType::capacity_type;
   int num_vertices = adjList.size();
-  depth_values.resize(num_vertices, num_vertices);
+  depth_values.resize(num_vertices);
+  std::fill(depth_values.begin(), depth_values.end(), num_vertices);
   depth_values[start_vertex] = 0;
   vector_based_queue<int> vertexQ(num_vertices);
   vertexQ.reset();
   vertexQ.push(start_vertex);
-  while (!vertexQ.empty()) {
-    int v_parent = vertexQ.pop();
-    int children_height = depth_values[v_parent] + 1;
-    auto it = adjList[v_parent].begin();
-    auto itEnd = adjList[v_parent].end();
-    for (; it != itEnd; it++) {
-      int toVertex = it->toVertex;
-      if (it->getReverseEdgeResidual() &&
-          depth_values[toVertex] == num_vertices) {
-        depth_values[toVertex] = children_height;
-        vertexQ.push(toVertex);
+
+  // The check for whether the search should be reverse or not could be done
+  // inside the innermost loop, but that would be detrimental to performance.
+  if (reverse) {
+    while (!vertexQ.empty()) {
+      int v_parent = vertexQ.pop();
+      int children_height = depth_values[v_parent] + 1;
+      auto it = adjList[v_parent].begin();
+      auto itEnd = adjList[v_parent].end();
+      for (; it != itEnd; it++) {
+        int toVertex = it->toVertex;
+        if (it->getReverseEdgeResidual() &&
+            depth_values[toVertex] == num_vertices) {
+          depth_values[toVertex] = children_height;
+          vertexQ.push(toVertex);
+        }
       }
     }
+  } else {
+    while (!vertexQ.empty()) {
+      int v_parent = vertexQ.pop();
+      int children_height = depth_values[v_parent] + 1;
+      auto it = adjList[v_parent].begin();
+      auto itEnd = adjList[v_parent].end();
+      for (; it != itEnd; it++) {
+        int toVertex = it->toVertex;
+        if (it->residual && depth_values[toVertex] == num_vertices) {
+          depth_values[toVertex] = children_height;
+          vertexQ.push(toVertex);
+        }
+      }
+    }
+  }
+
+  if (print_result) {
+    std::vector<int> level_sizes;
+    std::vector<std::vector<int>> levels;
+    levels.resize(num_vertices + 1);
+    level_sizes.resize(num_vertices + 1, 0);
+    for (int i = 0; i < depth_values.size(); i++) {
+      level_sizes[depth_values[i]]++;
+    }
+    for (int i = 0; i < level_sizes.size(); i++) {
+      levels[i].reserve(level_sizes[i]);
+    }
+    for (int i = 0; i < depth_values.size(); i++) {
+      levels[depth_values[i]].push_back(i);
+    }
+    std::cout << endl;
+    for (int i = 0; i < levels.size(); i++) {
+      if(!levels[i].size()) continue;
+      std::cout << "Level : " << i << std::endl;
+      for (int j = 0; j < levels[i].size(); j++) {
+        std::cout << levels[i][j] << " ";
+      }
+      std::cout << endl;
+    }
+    std::cout << endl;
   }
 }
 
@@ -149,11 +196,9 @@ isMaximumFlow(std::vector<std::vector<EdgeType>> &adjList, int source,
   // sink through any augmenting path.
   std::vector<int> depth_values;
   int num_vertices = adjList.size();
-  reverseBreadthFirstSearch(adjList, sink, depth_values);
-  return {
-    validity_result.first,
-        (validity_result.second && (depth_values[source] == num_vertices))
-  };
+  breadthFirstSearch(adjList, sink, depth_values, true, true);
+  return {validity_result.first,
+          (validity_result.second && (depth_values[source] == num_vertices))};
 }
 
 template <class EdgeType> class push_relabel {
@@ -401,29 +446,31 @@ public:
   }
 
   void printLevels() {
-    std::cout << "Levels : " << std::endl;
+    std::cout << "Printing Levels. "<< levels.size() << " in total for "<< numVertices << " vertices." << std::endl;
     for (int i = 0; i < levels.size(); i++) {
-      std::cout << "Level " << i << std::endl;
-
-      int size = levels[i].active_vertices.size();
-      std::cout << "Active list :" << size << " elements" << std::endl;
+      int size_active = levels[i].active_vertices.size();
+      int size_inactive = levels[i].inactive_vertices.size();
+      if((size_active == 0) && (size_inactive ==0)) continue;
+	
+      std::cout << std::endl;
+      std::cout << "Level " << i << std::endl<<std::endl;
+      std::cout << "Active list : " << size_active << " elements" << std::endl;
       vertex_node_t *pVertexNode = levels[i].active_vertices.front();
 
-      for (int n = 0; n < size; n++) {
+      for (int n = 0; n < size_active; n++) {
         std::cout << pVertexNode->id << " ";
         pVertexNode = pVertexNode->next;
       }
       std::cout << std::endl;
+      std::cout << std::endl;
 
-      size = levels[i].inactive_vertices.size();
-      std::cout << "Inactive list :" << size << " elements" << std::endl;
+      std::cout << "Inactive list : " << size_inactive << " elements" << std::endl;
       pVertexNode = levels[i].inactive_vertices.front();
 
-      for (int n = 0; n < size; n++) {
+      for (int n = 0; n < size_inactive; n++) {
         std::cout << pVertexNode->id << " ";
         pVertexNode = pVertexNode->next;
       }
-
       std::cout << std::endl;
     }
   }

@@ -1388,24 +1388,26 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	clock_t curr_2;
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
-     //pi.print();
+     pi.print();
      curr_2 = clock();
      printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
      curr_1 = clock();
 
-     ImplicationNetwork<long long int> implicationNet(pi);
-     //implicationNet.print();
+     ImplicationNetwork<long long int> implNet(pi);
+     implNet.print();
      curr_2 = clock();
      printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
     
      curr_1 = clock();
-     push_relabel<ImplicationEdge<long long int>> pushRelab(implicationNet.getAdjacencyList(), implicationNet.getSource(), implicationNet.getSink());
-     //implicationNet.print();
-
-     pushRelab.global_relabel();
-     //pushRelab.printLevels();
-    
+     push_relabel<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
+     pushRelab.printLevels();
+     std::cout << "Done p[rinting levels" <<std::endl;
+     vector<int> bfsRes;
+     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSink(), bfsRes, true, true); 
+     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, true, true); 
+     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
+ 
      long long int preflow = pushRelab.maximum_preflow();
      curr_2 = clock();
      printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1413,11 +1415,11 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
 
      curr_1 = clock();
-     implicationNet.makeResidualSymmetric();
+     implNet.makeResidualSymmetric();
      curr_2 = clock();
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
   
-     auto res  = isMaximumFlow(implicationNet.getAdjacencyList(), implicationNet.getSource(), implicationNet.getSink());
+     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
      std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
 
      printf(" Calling processed map based function \n"); 
