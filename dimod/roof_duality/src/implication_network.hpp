@@ -32,13 +32,30 @@
 template <typename capacity_t> class ImplicationEdge {
 public:
   typedef capacity_t capacity_type;
-  ImplicationEdge(int toVertex, capacity_t capacity,
+
+  ImplicationEdge(int fromVertex, int toVertex, capacity_t capacity,
                   capacity_t reverse_capacity)
-      : toVertex(toVertex), residual(capacity) {
+      : fromVertex(fromVertex), toVertex(toVertex), residual(capacity) {
     assert((!capacity || !reverse_capacity) &&
            "Either capacity or reverse edge capacity must be zero.");
     _encoded_capacity = (!capacity) ? -reverse_capacity : capacity;
   }
+
+  void print() {
+    std::cout << std::endl;
+    std::cout << fromVertex << " --> " << toVertex << std::endl;
+    std::cout << "Capacity : " << getCapacity() << std::endl;
+    std::cout << "Residual : " << residual << std::endl;
+    std::cout << "Reverse Edge Capaciy : " << getReverseEdgeCapacity()
+              << std::endl;
+    std::cout << "Reverse Edge Residual : " << getReverseEdgeResidual()
+              << std::endl;
+  }
+
+  // The fromVertex is redundant, since we use an adjacency list, but we are not
+  // wasting any space as of now, since due to alignment we end up using the
+  // same amount of storage for padding if we remove fromVertex.
+  int fromVertex;
   int toVertex;
   int revEdgeIdx;
   int symmEdgeIdx;
@@ -66,6 +83,10 @@ public:
     return ((_encoded_capacity > 0) ? _encoded_capacity : 0);
   }
 
+  inline capacity_t getReverseEdgeCapacity() {
+    return ((_encoded_capacity > 0) ? 0 : -_encoded_capacity);
+  }
+
   inline capacity_t getReverseEdgeResidual() {
     return ((_encoded_capacity > 0) ? (_encoded_capacity - residual)
                                     : (-_encoded_capacity - residual));
@@ -89,7 +110,7 @@ public:
   void makeResidualSymmetric();
 
   void print();
-  
+
   int getSource() { return _source; }
 
   int getSink() { return _sink; }
@@ -320,13 +341,13 @@ void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
   int from_complement = complement(from);
   int to_complement = complement(to);
   _adjacency_list[from].emplace_back(
-      ImplicationEdge<capacity_t>(to, capacity, 0));
+      ImplicationEdge<capacity_t>(from, to, capacity, 0));
   _adjacency_list[to].emplace_back(
-      ImplicationEdge<capacity_t>(from, 0, capacity));
+      ImplicationEdge<capacity_t>(to, from, 0, capacity));
   _adjacency_list[to_complement].emplace_back(
-      ImplicationEdge<capacity_t>(from_complement, capacity, 0));
+      ImplicationEdge<capacity_t>(to_complement, from_complement, capacity, 0));
   _adjacency_list[from_complement].emplace_back(
-      ImplicationEdge<capacity_t>(to_complement, 0, capacity));
+      ImplicationEdge<capacity_t>(from_complement, to_complement, 0, capacity));
   fillLastOutEdgeReferences(from, to);
   fillLastOutEdgeReferences(to, from);
   fillLastOutEdgeReferences(to_complement, from_complement);

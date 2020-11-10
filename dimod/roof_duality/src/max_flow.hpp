@@ -33,6 +33,96 @@
 
 #include "helper_data_structures.hpp"
 
+// Check if the flow value in a given graph represented as an adjacency list is
+// valid or not.
+template <class EdgeType>
+std::pair<typename EdgeType::capacity_type, bool>
+isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
+
+  using capacity_t = typename EdgeType::capacity_type;
+
+  bool valid_flow = true;
+  std::vector<capacity_t> excess(adjList.size(), 0);
+
+  std::cout << "Validating flow of flow network ..." << std::endl;
+
+  // Since we are validating our algorithms, we will not retrieve the
+  // value of residual/capacity of a reverse edge from its counterpart
+  // which we generally do for performance reasons. Here we will actually
+  // access the data and verify if the flow constraints hold or not.
+  for (int i = 0; i < adjList.size(); i++) {
+    for (int j = 0; j < adjList[i].size(); j++) {
+      bool valid = true;
+      int to_vertex = adjList[i][j].toVertex;
+      int reverse_edge_index = adjList[i][j].revEdgeIdx;
+      capacity_t edge_capacity = adjList[i][j].getCapacity();
+      capacity_t edge_residual = adjList[i][j].residual;
+      capacity_t reverse_edge_capacity =
+          adjList[to_vertex][reverse_edge_index].getCapacity();
+      capacity_t reverse_edge_residual =
+          adjList[to_vertex][reverse_edge_index].residual;
+      valid &=
+          (adjList[i][j].getReverseEdgeCapacity() == reverse_edge_capacity);
+      valid &=
+          (adjList[i][j].getReverseEdgeResidual() == reverse_edge_residual);
+      valid &= (edge_capacity >= 0);
+      valid &= (edge_residual >= 0);
+      valid &= (edge_residual <= edge_capacity);
+      if (edge_capacity > 0) {
+        valid &= (reverse_edge_capacity == 0);
+        valid &= ((edge_residual + reverse_edge_residual) == edge_capacity);
+        capacity_t flow = (edge_capacity - edge_residual);
+        excess[i] -= flow;
+        excess[to_vertex] += flow;
+      }
+      if (!valid) {
+        std::cout << "Invalid Flow due to following edge pair :" << std::endl;
+        adjList[i][j].print();
+        adjList[to_vertex][reverse_edge_index].print();
+      }
+      valid_flow &= valid;
+    }
+  }
+
+  for (int i = 0; i < excess.size(); i++) {
+    if (i == source || i == sink)
+      continue;
+    if (excess[i]) {
+      std::cout << "Excess flow of " << excess[i] << " in vertex : " << i
+                << std::endl;
+      valid_flow = false;
+    }
+  }
+
+  if (excess[sink] != -excess[source]) {
+    std::cout << "Flow out of source is not equal to flow into sink"
+              << std::endl;
+    valid_flow = false;
+  }
+
+  return {excess[sink], valid_flow};
+};
+
+/*
+// Check if the flow value in a given graph represented as an adjacency list is
+// maximum or not.
+template <class EdgeType>
+EdgeType::capacity_type
+isFlowOptimal(std::vector<std::vector<EdgeType>> &adjList, int source,
+              int sink){
+
+};
+
+// Check if the flow value in a given graph represented as an adjacency list is
+// a valid max-flow or not and also return the flow value.
+template <class EdgeType>
+std::pair<EdgeType::capacity_type, bool>
+isMaximumFlow(std::vector<std::vector<EdgeType>> &adjList, int source,
+              int sink){
+
+};
+*/
+
 template <class EdgeType> class push_relabel {
 public:
   using edgeIterator = typename vector<EdgeType>::iterator;

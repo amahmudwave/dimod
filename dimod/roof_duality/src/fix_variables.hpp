@@ -1415,8 +1415,10 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_1 = clock();
      implicationNet.makeResidualSymmetric();
      curr_2 = clock();
-     std::cout << "Symmetric flow/2 " << implicationNet.getCurrentFlow()/2 << std::endl; 
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+  
+     auto res  = isFlowValid(implicationNet.getAdjacencyList(), implicationNet.getSource(), implicationNet.getSink());
+     std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
 
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 
