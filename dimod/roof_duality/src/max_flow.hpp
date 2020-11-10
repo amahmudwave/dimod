@@ -67,9 +67,12 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
           (adjList[i][j].getReverseEdgeResidual() == reverse_edge_residual);
       valid &= (edge_capacity >= 0);
       valid &= (edge_residual >= 0);
-      valid &= (edge_residual <= edge_capacity);
       if (edge_capacity > 0) {
+        // Valid assumption for posiforms, since no term with two variables
+        // appear multiple times with different ordering of the variables. This
+        // assumption can be maintained with other graphs too.
         valid &= (reverse_edge_capacity == 0);
+        valid &= (edge_residual <= edge_capacity);
         valid &= ((edge_residual + reverse_edge_residual) == edge_capacity);
         capacity_t flow = (edge_capacity - edge_residual);
         excess[i] -= flow;
@@ -85,7 +88,8 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   }
 
   for (int i = 0; i < excess.size(); i++) {
-    if ((i == source) || (i == sink)) continue;
+    if ((i == source) || (i == sink))
+      continue;
     if (excess[i]) {
       std::cout << "Excess flow of " << excess[i] << " in vertex : " << i
                 << std::endl;
