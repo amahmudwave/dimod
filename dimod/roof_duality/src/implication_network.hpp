@@ -22,7 +22,7 @@
 // Edge type for implication network. An implication network is formed from a
 // posiform. If there is a term Coeff * X_i * X_j, we will have two edges in the
 // network one X_i to X_j' and another X_j to X_i', the directions will depend
-// on the on the sign of the coefficient. The index of the symmetric edge for
+// on the the sign of the coefficient. The index of the symmetric edge for
 // X_i connecting to X_j' is the index to the edge in the edge list of X_j that
 // connects to X_i'. It is needed for the step where we average the residual
 // capacities of the edges to get the symmetric residual graph.
@@ -52,9 +52,10 @@ public:
               << std::endl;
   }
 
-  // The from_vertex is redundant, since we use an adjacency list, but we are not
-  // wasting any space as of now, since due to alignment we end up using the
-  // same amount of storage for padding if we remove from_vertex.
+  // The from_vertex is redundant, since we use an adjacency list, but we are
+  // not wasting any space as of now, since the compiler uses the same amount of
+  // storage for padding when residual is of a type that takes 8 bytes and in
+  // our implmementation we use long long int (8 byte type).
   int from_vertex;
   int to_vertex;
   int reverse_edge_index;
@@ -65,13 +66,13 @@ private:
   // The value of capacity is not needed per se to compute a max-flow but is
   // needed for the purpose of verifying it. We use the encoded capacity to
   // store the capacity of an edge, but when it is a residual/reverse edge,
-  // instead of saving 0 we save the negative of the original edge, this way we
-  // can both verify max-flow and also return the residual capacity of the edge
-  // itself and also its reverse/residual without hopping through memory.
-  // This is not the best software engineering practice, but is needed to save
-  // memory. Current size is 32 byte when long long int is used for capacity
-  // and 2 such edges fit in a typical cache line, adding 8 bytes will not allow
-  // that to be possible.
+  // instead of saving 0 we save the negative of the original edge's capacity,
+  // this way we can both verify max-flow and also return the residual capacity
+  // of the edge itself and also its reverse/residual without hopping through
+  // memory. This is not the best software engineering practice, but is needed
+  // to save memory. Current size is 32 byte when long long int is used for
+  // capacity and 2 such edges fit in a typical cache line, adding 8 bytes will
+  // not allow that to be possible.
   capacity_t _encoded_capacity;
 
 public:
@@ -115,7 +116,7 @@ public:
 
   int getSink() { return _sink; }
 
-  vector<vector<ImplicationEdge<capacity_t>>> &getAdjacencyList() {
+  std::vector<std::vector<ImplicationEdge<capacity_t>>> &getAdjacencyList() {
     return _adjacency_list;
   }
 
@@ -125,17 +126,15 @@ private:
                                  : (v - _num_variables - 1);
   }
 
-  void fillLastOutEdgeReferences(int from, int to);
-  void createImplicationNetworkEdges(int from, int to, capacity_t capacity);
+  void fillLastOutEdgeReferences(int from_vertex, int to_vertex);
+  void createImplicationNetworkEdges(int from_vertex, int to_vertex,
+                                     capacity_t capacity);
 
   int _num_variables;
   int _num_vertices;
   int _source;
   int _sink;
-  vector<vector<ImplicationEdge<capacity_t>>> _adjacency_list;
-
-  // TODO : Verify size estimates are correct, for debugging, remove it.
-  vector<int> _size_estimates;
+  std::vector<std::vector<ImplicationEdge<capacity_t>>> _adjacency_list;
 };
 
 template <class capacity_t>
@@ -152,7 +151,6 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
   _source = _num_variables;
   _sink = 2 * _num_variables + 1;
   _adjacency_list.resize(2 * _num_variables + 2);
-  _size_estimates.resize(_num_vertices, 0);
 
   // The complement function should only be used after setting the above
   // variables.
@@ -162,14 +160,13 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
   int num_linear = posiform.getNumLinear();
   _adjacency_list[_source].reserve(num_linear);
   _adjacency_list[_sink].reserve(num_linear);
-  _size_estimates[_source] = num_linear;
-  _size_estimates[_sink] = num_linear;
 
+  // For efficiency we preallocate the vectors first.
   // There are reverse edges for each edge created in the implication graph.
   // Depending on the sign of the bias, an edge may start from v or v' but
   // reverse edges makes the number of edges coming out of v and v' the same and
-  // are to 1 + number of quadratic biases in which v contributes. The + 1 is
-  // due to the linear term.
+  // are equal to 1/0 + number of quadratic biases in which v contributes. The +
+  // 1 is due to the linear term when it is present.
   for (int u = 0; u < _num_variables; u++) {
     int u_complement = complement(u);
     int num_out_edges = posiform.getNumQuadratic(u);
@@ -178,15 +175,16 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
       num_out_edges++;
     _adjacency_list[u].reserve(num_out_edges);
     _adjacency_list[u_complement].reserve(num_out_edges);
-    _size_estimates[u] = num_out_edges;
-    _size_estimates[u_complement] = num_out_edges;
+  }
 
+  for (int u = 0; u < _num_variables; u++) {
+    int u_complement = complement(u);
+    auto linear = posiform.getLinear(u);
     if (linear > 0) {
       createImplicationNetworkEdges(_source, u_complement, linear);
     } else if (linear < 0) {
       createImplicationNetworkEdges(_source, u, -linear);
     }
-
     auto quadratic_span = posiform.getQuadratic(u);
     auto it = quadratic_span.first;
     auto itEnd = quadratic_span.second;
@@ -252,51 +250,47 @@ template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
   std::cout << "Source : " << _source << " Sink : " << _sink << std::endl;
   std::cout << std::endl;
   for (int i = 0; i < _adjacency_list.size(); i++) {
-    if (_adjacency_list[i].size() != _size_estimates[i]) {
-      std::cout << "Inaccurate size estimate for out edges for " << i << " "
-                << _size_estimates[i] << std::endl;
-    }
-
     for (int j = 0; j < _adjacency_list[i].size(); j++) {
       auto &node = _adjacency_list[i][j];
-      std::cout << "{ " << i << " --> " << node.to_vertex << " " << node.residual
-                << " ";
-      std::cout << node.reverse_edge_index << " " << node.symmetric_edge_index << " } "
-                << std::endl;
+      std::cout << "{ " << i << " --> " << node.to_vertex << " "
+                << node.residual << " ";
+      std::cout << node.reverse_edge_index << " " << node.symmetric_edge_index
+                << " } " << std::endl;
     }
     std::cout << endl;
-    assert(_adjacency_list[i].size() == _size_estimates[i]);
   }
 }
 
 template <class capacity_t>
-void ImplicationNetwork<capacity_t>::fillLastOutEdgeReferences(int from,
-                                                               int to) {
-  auto &edge = _adjacency_list[from].back();
-  edge.reverse_edge_index = _adjacency_list[to].size() - 1;
-  int symmetricFrom = complement(to);
-  edge.symmetric_edge_index = _adjacency_list[symmetricFrom].size() - 1;
+void ImplicationNetwork<capacity_t>::fillLastOutEdgeReferences(int from_vertex,
+                                                               int to_vertex) {
+  auto &edge = _adjacency_list[from_vertex].back();
+  edge.reverse_edge_index = _adjacency_list[to_vertex].size() - 1;
+  int symmetric_from_vertex = complement(to_vertex);
+  edge.symmetric_edge_index = _adjacency_list[symmetric_from_vertex].size() - 1;
 }
 
 // Each term in posiform produces four edges in implication network
 // the reverse edges and the symmetric edges.
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
-    int from, int to, capacity_t capacity) {
-  int from_complement = complement(from);
-  int to_complement = complement(to);
-  _adjacency_list[from].emplace_back(
-      ImplicationEdge<capacity_t>(from, to, capacity, 0));
-  _adjacency_list[to].emplace_back(
-      ImplicationEdge<capacity_t>(to, from, 0, capacity));
-  _adjacency_list[to_complement].emplace_back(
-      ImplicationEdge<capacity_t>(to_complement, from_complement, capacity, 0));
-  _adjacency_list[from_complement].emplace_back(
-      ImplicationEdge<capacity_t>(from_complement, to_complement, 0, capacity));
-  fillLastOutEdgeReferences(from, to);
-  fillLastOutEdgeReferences(to, from);
-  fillLastOutEdgeReferences(to_complement, from_complement);
-  fillLastOutEdgeReferences(from_complement, to_complement);
+    int from_vertex, int to_vertex, capacity_t capacity) {
+  int from_vertex_complement = complement(from_vertex);
+  int to_vertex_complement = complement(to_vertex);
+  _adjacency_list[from_vertex].emplace_back(
+      ImplicationEdge<capacity_t>(from_vertex, to_vertex, capacity, 0));
+  _adjacency_list[to_vertex].emplace_back(
+      ImplicationEdge<capacity_t>(to_vertex, from_vertex, 0, capacity));
+  _adjacency_list[to_vertex_complement].emplace_back(
+      ImplicationEdge<capacity_t>(to_vertex_complement, from_vertex_complement,
+                                  capacity, 0));
+  _adjacency_list[from_vertex_complement].emplace_back(
+      ImplicationEdge<capacity_t>(from_vertex_complement, to_vertex_complement,
+                                  0, capacity));
+  fillLastOutEdgeReferences(from_vertex, to_vertex);
+  fillLastOutEdgeReferences(to_vertex, from_vertex);
+  fillLastOutEdgeReferences(to_vertex_complement, from_vertex_complement);
+  fillLastOutEdgeReferences(from_vertex_complement, to_vertex_complement);
 }
 
 #endif // IMPLICATION_NETWORK_INCLUDED

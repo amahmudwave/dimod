@@ -1388,25 +1388,25 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	clock_t curr_2;
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
-     pi.print();
+  //   pi.print();
      curr_2 = clock();
      printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
      curr_1 = clock();
 
      ImplicationNetwork<long long int> implNet(pi);
-     implNet.print();
+//     implNet.print();
      curr_2 = clock();
      printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
     
      curr_1 = clock();
      push_relabel<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-     pushRelab.printLevels();
+//     pushRelab.printLevels();
      std::cout << "Done p[rinting levels" <<std::endl;
      vector<int> bfsRes;
-     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSink(), bfsRes, true, true); 
-     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, true, true); 
-     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
+//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSink(), bfsRes, true, true); 
+//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, true, true); 
+//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
  
      long long int preflow = pushRelab.maximum_preflow();
      curr_2 = clock();
@@ -1419,7 +1419,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_2 = clock();
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
   
-     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
+  //   breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
      auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
      std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
 
