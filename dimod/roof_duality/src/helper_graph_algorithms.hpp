@@ -41,7 +41,7 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
                          reverse_edge_residual) &&
                         (edge_capacity >= 0) && (edge_residual >= 0);
       if (edge_capacity > 0) {
-        // Residual edge having capacity 0 is a alid assumption for posiforms,
+        // Residual edge having capacity 0 is a valid assumption for posiforms,
         // since no term with two variables appear multiple times with different
         // ordering of the variables. This assumption can be maintained with
         // other graphs too.
@@ -82,20 +82,18 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
   return {excess[sink], valid_flow};
 }
 
-// Perform reverse breadth first search from a certain vertex, a depth of the
-// number of vertices means that vertex could not be reached from the
-// start_vertex, since the maximum depth can be equal to number of vertices -1.
+// Perform breadth first search from a certain vertex, a depth equal to  the number of vertices means that vertex could not be reached from the start_vertex, since the maximum depth can be equal to number of vertices -1.
 template <class EdgeType>
-void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjacency_list,
-                        int start_vertex, std::vector<int> &depth_values,
+void breadthFirstSearch(std::vector<std::vector<EdgeType>>& adjacency_list,
+                        int start_vertex, std::vector<int>& depth_values,
                         bool reverse = false, bool print_result = false) {
   using capacity_t = typename EdgeType::capacity_type;
   int num_vertices = adjacency_list.size();
+  vector_based_queue<int> vertex_queue(num_vertices);
   depth_values.resize(num_vertices);
   std::fill(depth_values.begin(), depth_values.end(), num_vertices);
+
   depth_values[start_vertex] = 0;
-  vector_based_queue<int> vertex_queue(num_vertices);
-  vertex_queue.reset();
   vertex_queue.push(start_vertex);
 
   // The check for whether the search should be reverse or not could be done
@@ -103,14 +101,14 @@ void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjacency_list,
   if (reverse) {
     while (!vertex_queue.empty()) {
       int v_parent = vertex_queue.pop();
-      int current_height = depth_values[v_parent] + 1;
-      auto it = adjacency_list[v_parent].begin();
-      auto itEnd = adjacency_list[v_parent].end();
-      for (; it != itEnd; it++) {
-        int to_vertex = it->to_vertex;
-        if (it->getReverseEdgeResidual() &&
+      int current_depth = depth_values[v_parent] + 1;
+      auto eit = adjacency_list[v_parent].begin();
+      auto eit_end = adjacency_list[v_parent].end();
+      for (; eit != eit_end; eit++) {
+        int to_vertex = eit->to_vertex;
+        if (eit->getReverseEdgeResidual() &&
             depth_values[to_vertex] == num_vertices) {
-          depth_values[to_vertex] = current_height;
+          depth_values[to_vertex] = current_depth;
           vertex_queue.push(to_vertex);
         }
       }
@@ -118,13 +116,13 @@ void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjacency_list,
   } else {
     while (!vertex_queue.empty()) {
       int v_parent = vertex_queue.pop();
-      int current_height = depth_values[v_parent] + 1;
-      auto it = adjacency_list[v_parent].begin();
-      auto itEnd = adjacency_list[v_parent].end();
-      for (; it != itEnd; it++) {
-        int to_vertex = it->to_vertex;
-        if (it->residual && depth_values[to_vertex] == num_vertices) {
-          depth_values[to_vertex] = current_height;
+      int current_depth = depth_values[v_parent] + 1;
+      auto eit = adjacency_list[v_parent].begin();
+      auto eit_end = adjacency_list[v_parent].end();
+      for (; eit != eit_end; eit++) {
+        int to_vertex = eit->to_vertex;
+        if (eit->residual && depth_values[to_vertex] == num_vertices) {
+          depth_values[to_vertex] = current_depth;
           vertex_queue.push(to_vertex);
         }
       }
