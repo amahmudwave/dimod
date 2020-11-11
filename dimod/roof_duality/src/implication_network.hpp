@@ -212,7 +212,7 @@ template <class capacity_t>
 void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
   for (int i = 0, i_end = _adjacency_list.size(); i < i_end; i++) {
     auto eit = _adjacency_list[i].begin();
-    auto eit_end = _adjacency_list[i].edn();
+    auto eit_end = _adjacency_list[i].end();
     for (; eit != eit_end; eit++) {
       int from_vertex = i;
       int from_vertex_complement = complement(from_vertex);
