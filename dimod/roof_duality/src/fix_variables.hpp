@@ -28,6 +28,7 @@
 #include "max_flow.hpp"
 #include "posiform_info.hpp"
 #include "implication_network.hpp"
+#include "helper_graph_algorithms.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1400,11 +1401,11 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
     
      curr_1 = clock();
-     push_relabel<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
+     PushRelabelSolver<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
 //     pushRelab.printLevels();
      std::cout << "Done p[rinting levels" <<std::endl;
      vector<int> bfsRes;
-//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSink(), bfsRes, true, true); 
+     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSink(), bfsRes, true, true); 
 //     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, true, true); 
 //     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
  
