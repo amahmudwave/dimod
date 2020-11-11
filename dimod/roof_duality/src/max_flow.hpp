@@ -52,8 +52,8 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjList, int source, int sink) {
   // access the data and verify if the flow constraints hold or not.
   for (int i = 0; i < adjList.size(); i++) {
     for (int j = 0; j < adjList[i].size(); j++) {
-      int to_vertex = adjList[i][j].toVertex;
-      int reverse_edge_index = adjList[i][j].revEdgeIdx;
+      int to_vertex = adjList[i][j].to_vertex;
+      int reverse_edge_index = adjList[i][j].reverse_edge_index;
       capacity_t edge_capacity = adjList[i][j].getCapacity();
       capacity_t edge_residual = adjList[i][j].residual;
       capacity_t reverse_edge_capacity =
@@ -130,11 +130,11 @@ void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
       auto it = adjList[v_parent].begin();
       auto itEnd = adjList[v_parent].end();
       for (; it != itEnd; it++) {
-        int toVertex = it->toVertex;
+        int to_vertex = it->to_vertex;
         if (it->getReverseEdgeResidual() &&
-            depth_values[toVertex] == num_vertices) {
-          depth_values[toVertex] = children_height;
-          vertexQ.push(toVertex);
+            depth_values[to_vertex] == num_vertices) {
+          depth_values[to_vertex] = children_height;
+          vertexQ.push(to_vertex);
         }
       }
     }
@@ -145,10 +145,10 @@ void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
       auto it = adjList[v_parent].begin();
       auto itEnd = adjList[v_parent].end();
       for (; it != itEnd; it++) {
-        int toVertex = it->toVertex;
-        if (it->residual && depth_values[toVertex] == num_vertices) {
-          depth_values[toVertex] = children_height;
-          vertexQ.push(toVertex);
+        int to_vertex = it->to_vertex;
+        if (it->residual && depth_values[to_vertex] == num_vertices) {
+          depth_values[to_vertex] = children_height;
+          vertexQ.push(to_vertex);
         }
       }
     }
@@ -169,9 +169,15 @@ void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjList,
       levels[depth_values[i]].push_back(i);
     }
     std::cout << endl;
+    std::cout << "Printing " << (reverse ? "reverse " : "")
+              << "breadth first search result starting from vertex : "
+              << start_vertex << std::endl;
+    std::cout << endl;
     for (int i = 0; i < levels.size(); i++) {
-      if(!levels[i].size()) continue;
-      std::cout << "Level : " << i << std::endl;
+      if (!levels[i].size())
+        continue;
+      std::cout << "Level " << i << " has " << levels[i].size()
+                << " vertices : " << std::endl;
       for (int j = 0; j < levels[i].size(); j++) {
         std::cout << levels[i][j] << " ";
       }
@@ -246,9 +252,9 @@ public:
     edgeIterator it, itEnd;
     for (std::tie(it, itEnd) = outEdges(source); it != itEnd; it++) {
       capacity_t flow = it->residual;
-      adjList[it->toVertex][it->revEdgeIdx].residual += flow;
+      adjList[it->to_vertex][it->reverse_edge_index].residual += flow;
       it->residual = 0;
-      _vertices[it->toVertex].excess += flow;
+      _vertices[it->to_vertex].excess += flow;
       numPushes++;
     }
 
@@ -282,22 +288,22 @@ public:
       int children_height = _vertices[v_parent].height + 1;
       edgeIterator it, itEnd;
       for (std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
-        int toVertex = it->toVertex;
+        int to_vertex = it->to_vertex;
         // std::cout << " Parent " << v_parent << " " << children_height -1 <<
         // std::endl;
         if (it->getReverseEdgeResidual() &&
-            _vertices[toVertex].height == numVertices) {
+            _vertices[to_vertex].height == numVertices) {
 
-          // std::cout << " Child " << toVertex << " " << children_height  <<
+          // std::cout << " Child " << to_vertex << " " << children_height  <<
           // std::endl;
-          _vertices[toVertex].height = children_height;
+          _vertices[to_vertex].height = children_height;
           maxHeight = std::max(maxHeight, children_height);
-          if (_vertices[toVertex].excess > 0) {
-            add_to_active_list(toVertex);
+          if (_vertices[to_vertex].excess > 0) {
+            add_to_active_list(to_vertex);
           } else {
-            add_to_inactive_list(toVertex);
+            add_to_inactive_list(to_vertex);
           }
-          vertexQ.push(toVertex);
+          vertexQ.push(to_vertex);
         }
       }
     }
@@ -311,27 +317,27 @@ public:
       for (std::tie(eit, eitEnd) = vCurrentEdges[vertex]; eit != eitEnd;
            eit++) {
         if (eit->residual) {
-          int toVertex = eit->toVertex;
-          int toVertexHeight = _vertices[toVertex].height;
-          if (vertexHeight == toVertexHeight + 1) {
-            if (toVertex != sink && _vertices[toVertex].excess == 0) {
-              // remove_from_inactive_list(toVertex);
-              levels[toVertexHeight].inactive_vertices.erase(
-                  &_vertices[toVertex]);
-              // add_to_active_list(toVertex);
-              levels[toVertexHeight].active_vertices.push_front(
-                  &_vertices[toVertex]);
-              maxActiveHeight = std::max(toVertexHeight, maxActiveHeight);
-              minActiveHeight = std::min(toVertexHeight, minActiveHeight);
+          int to_vertex = eit->to_vertex;
+          int to_vertexHeight = _vertices[to_vertex].height;
+          if (vertexHeight == to_vertexHeight + 1) {
+            if (to_vertex != sink && _vertices[to_vertex].excess == 0) {
+              // remove_from_inactive_list(to_vertex);
+              levels[to_vertexHeight].inactive_vertices.erase(
+                  &_vertices[to_vertex]);
+              // add_to_active_list(to_vertex);
+              levels[to_vertexHeight].active_vertices.push_front(
+                  &_vertices[to_vertex]);
+              maxActiveHeight = std::max(to_vertexHeight, maxActiveHeight);
+              minActiveHeight = std::min(to_vertexHeight, minActiveHeight);
               assert(maxActiveHeight >= 0 && maxActiveHeight < numVertices);
               assert(minActiveHeight >= 0 && minActiveHeight < numVertices);
             }
             // Push flow inlined here
             capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
             eit->residual -= flow;
-            adjList[toVertex][eit->revEdgeIdx].residual += flow;
+            adjList[to_vertex][eit->reverse_edge_index].residual += flow;
             _vertices[vertex].excess -= flow;
-            _vertices[toVertex].excess += flow;
+            _vertices[to_vertex].excess += flow;
             if (_vertices[vertex].excess == 0)
               break;
           }
@@ -379,9 +385,9 @@ public:
     _vertices[vertex].height = minRelabelHeight;
     edgeIterator eit, eitEnd, eitMinRelabel;
     for (std::tie(eit, eitEnd) = outEdges(vertex); eit != eitEnd; eit++) {
-      int toVertex = eit->toVertex;
-      if (eit->residual && _vertices[toVertex].height < minRelabelHeight) {
-        minRelabelHeight = _vertices[toVertex].height;
+      int to_vertex = eit->to_vertex;
+      if (eit->residual && _vertices[to_vertex].height < minRelabelHeight) {
+        minRelabelHeight = _vertices[to_vertex].height;
         eitMinRelabel = eit;
       }
     }
@@ -411,13 +417,13 @@ public:
     return _vertices[sink].excess;
   }
 
-  void push(int fromVertex, edgeIterator eit) {
-    int toVertex = eit->toVertex;
-    capacity_t flow = std::min(eit->residual, _vertices[fromVertex].excess);
+  void push(int from_vertex, edgeIterator eit) {
+    int to_vertex = eit->to_vertex;
+    capacity_t flow = std::min(eit->residual, _vertices[from_vertex].excess);
     eit->residual -= flow;
-    adjList[toVertex][eit->revEdgeIdx].residual += flow;
-    _vertices[fromVertex].excess -= flow;
-    _vertices[toVertex].excess += flow;
+    adjList[to_vertex][eit->reverse_edge_index].residual += flow;
+    _vertices[from_vertex].excess -= flow;
+    _vertices[to_vertex].excess += flow;
   }
 
   std::pair<edgeIterator, edgeIterator> outEdges(int vertex) {
@@ -446,15 +452,17 @@ public:
   }
 
   void printLevels() {
-    std::cout << "Printing Levels. "<< levels.size() << " in total for "<< numVertices << " vertices." << std::endl;
+    std::cout << "Printing Levels. " << levels.size() << " in total for "
+              << numVertices << " vertices." << std::endl;
     for (int i = 0; i < levels.size(); i++) {
       int size_active = levels[i].active_vertices.size();
       int size_inactive = levels[i].inactive_vertices.size();
-      if((size_active == 0) && (size_inactive ==0)) continue;
-	
+      if ((size_active == 0) && (size_inactive == 0))
+        continue;
+
       std::cout << std::endl;
-      std::cout << "Level " << i << std::endl<<std::endl;
-      std::cout << "Active list : " << size_active << " elements" << std::endl;
+      std::cout << "Level " << i << std::endl << std::endl;
+      std::cout << "Active list : " << size_active << " vertices" << std::endl;
       vertex_node_t *pVertexNode = levels[i].active_vertices.front();
 
       for (int n = 0; n < size_active; n++) {
@@ -464,7 +472,8 @@ public:
       std::cout << std::endl;
       std::cout << std::endl;
 
-      std::cout << "Inactive list : " << size_inactive << " elements" << std::endl;
+      std::cout << "Inactive list : " << size_inactive << " vertices"
+                << std::endl;
       pVertexNode = levels[i].inactive_vertices.front();
 
       for (int n = 0; n < size_inactive; n++) {

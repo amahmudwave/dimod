@@ -33,9 +33,9 @@ template <typename capacity_t> class ImplicationEdge {
 public:
   typedef capacity_t capacity_type;
 
-  ImplicationEdge(int fromVertex, int toVertex, capacity_t capacity,
+  ImplicationEdge(int from_vertex, int to_vertex, capacity_t capacity,
                   capacity_t reverse_capacity)
-      : fromVertex(fromVertex), toVertex(toVertex), residual(capacity) {
+      : from_vertex(from_vertex), to_vertex(to_vertex), residual(capacity) {
     assert((!capacity || !reverse_capacity) &&
            "Either capacity or reverse edge capacity must be zero.");
     _encoded_capacity = (!capacity) ? -reverse_capacity : capacity;
@@ -43,7 +43,7 @@ public:
 
   void print() {
     std::cout << std::endl;
-    std::cout << fromVertex << " --> " << toVertex << std::endl;
+    std::cout << from_vertex << " --> " << to_vertex << std::endl;
     std::cout << "Capacity : " << getCapacity() << std::endl;
     std::cout << "Residual : " << residual << std::endl;
     std::cout << "Reverse Edge Capaciy : " << getReverseEdgeCapacity()
@@ -52,13 +52,13 @@ public:
               << std::endl;
   }
 
-  // The fromVertex is redundant, since we use an adjacency list, but we are not
+  // The from_vertex is redundant, since we use an adjacency list, but we are not
   // wasting any space as of now, since due to alignment we end up using the
-  // same amount of storage for padding if we remove fromVertex.
-  int fromVertex;
-  int toVertex;
-  int revEdgeIdx;
-  int symmEdgeIdx;
+  // same amount of storage for padding if we remove from_vertex.
+  int from_vertex;
+  int to_vertex;
+  int reverse_edge_index;
+  int symmetric_edge_index;
   capacity_t residual;
 
 private:
@@ -216,14 +216,14 @@ void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
       int from_vertex = i;
       int from_vertex_complement = complement(from_vertex);
       int from_vertex_base = std::min(from_vertex, from_vertex_complement);
-      int to_vertex = _adjacency_list[i][j].toVertex;
+      int to_vertex = _adjacency_list[i][j].to_vertex;
       int to_vertex_complement = complement(to_vertex);
       int to_vertex_base = std::min(to_vertex, to_vertex_complement);
       // We don not want to process the symmetric edges twice, we pick the one
       // that starts from the smaller vertex number when complementation is not
       // taken into account.
       if (to_vertex_base > from_vertex_base) {
-        int symmetric_edge_idx = _adjacency_list[i][j].revEdgeIdx;
+        int symmetric_edge_idx = _adjacency_list[i][j].reverse_edge_index;
         capacity_t edge_residual = _adjacency_list[i][j].residual;
         capacity_t symmetric_edge_residual =
             _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual;
@@ -259,9 +259,9 @@ template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
 
     for (int j = 0; j < _adjacency_list[i].size(); j++) {
       auto &node = _adjacency_list[i][j];
-      std::cout << "{ " << i << " --> " << node.toVertex << " " << node.residual
+      std::cout << "{ " << i << " --> " << node.to_vertex << " " << node.residual
                 << " ";
-      std::cout << node.revEdgeIdx << " " << node.symmEdgeIdx << " } "
+      std::cout << node.reverse_edge_index << " " << node.symmetric_edge_index << " } "
                 << std::endl;
     }
     std::cout << endl;
@@ -273,9 +273,9 @@ template <class capacity_t>
 void ImplicationNetwork<capacity_t>::fillLastOutEdgeReferences(int from,
                                                                int to) {
   auto &edge = _adjacency_list[from].back();
-  edge.revEdgeIdx = _adjacency_list[to].size() - 1;
+  edge.reverse_edge_index = _adjacency_list[to].size() - 1;
   int symmetricFrom = complement(to);
-  edge.symmEdgeIdx = _adjacency_list[symmetricFrom].size() - 1;
+  edge.symmetric_edge_index = _adjacency_list[symmetricFrom].size() - 1;
 }
 
 // Each term in posiform produces four edges in implication network
