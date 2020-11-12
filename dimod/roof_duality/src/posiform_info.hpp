@@ -284,7 +284,6 @@ void PosiformInfo<BQM, coefficient_t>::print() {
                 << convertToPosiformCoefficient(it->second) << std::endl;
     }
   }
-
   std::cout << std::endl;
 }
 
