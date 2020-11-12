@@ -216,7 +216,7 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   for (int i = 0; i < _linear_integral_biases.size(); i++) {
     if (_linear_integral_biases[i]) {
       _num_linear_integral_biases++;
-      _posiform_linear_sum_integral += std::abs(_linear_integral_biases[i]);
+      _posiform_linear_sum_integral += std::llabs(_linear_integral_biases[i]);
     }
     if (_linear_integral_biases[i] < 0) {
       _constant_posiform += _linear_integral_biases[i];
