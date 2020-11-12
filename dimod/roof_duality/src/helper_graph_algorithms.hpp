@@ -26,20 +26,20 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
   // which we generally do for performance reasons. Here we will actually
   // access the data and verify if the flow constraints hold or not.
   for (int i = 0; i < adjacency_list.size(); i++) {
-    for (int j = 0; j < adjacency_list[i].size(); j++) {
-      int to_vertex = adjacency_list[i][j].to_vertex;
-      int reverse_edge_index = adjacency_list[i][j].reverse_edge_index;
-      capacity_t edge_capacity = adjacency_list[i][j].getCapacity();
-      capacity_t edge_residual = adjacency_list[i][j].residual;
-      capacity_t reverse_edge_capacity =
-          adjacency_list[to_vertex][reverse_edge_index].getCapacity();
-      capacity_t reverse_edge_residual =
-          adjacency_list[to_vertex][reverse_edge_index].residual;
-      bool valid_edge = (adjacency_list[i][j].getReverseEdgeCapacity() ==
-                         reverse_edge_capacity) &&
-                        (adjacency_list[i][j].getReverseEdgeResidual() ==
-                         reverse_edge_residual) &&
-                        (edge_capacity >= 0) && (edge_residual >= 0);
+    auto eit = adjacency_list[i].begin();
+    auto eit_end = adjacency_list[i].end();
+    for (; eit != eit_end; eit++) {
+      int to_vertex = eit->to_vertex;
+      auto reverse_eit =
+          adjacency_list[to_vertex].begin() + eit->reverse_edge_index;
+      capacity_t edge_capacity = eit->getCapacity();
+      capacity_t edge_residual = eit->residual;
+      capacity_t reverse_edge_capacity = reverse_eit->getCapacity();
+      capacity_t reverse_edge_residual = reverse_eit->residual;
+      bool valid_edge =
+          (eit->getReverseEdgeCapacity() == reverse_edge_capacity) &&
+          (eit->getReverseEdgeResidual() == reverse_edge_residual) &&
+          (edge_capacity >= 0) && (edge_residual >= 0);
       if (edge_capacity > 0) {
         // Residual edge having capacity 0 is a valid assumption for posiforms,
         // since no term with two variables appear multiple times with different
@@ -55,8 +55,8 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
       }
       if (!valid_edge) {
         std::cout << "Invalid Flow due to following edge pair :" << std::endl;
-        adjacency_list[i][j].print();
-        adjacency_list[to_vertex][reverse_edge_index].print();
+        eit->print();
+        reverse_eit->print();
       }
       valid_flow = valid_flow && valid_edge;
     }
@@ -82,10 +82,12 @@ isFlowValid(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
   return {excess[sink], valid_flow};
 }
 
-// Perform breadth first search from a certain vertex, a depth equal to  the number of vertices means that vertex could not be reached from the start_vertex, since the maximum depth can be equal to number of vertices -1.
+// Perform breadth first search from a certain vertex, a depth equal to  the
+// number of vertices means that vertex could not be reached from the
+// start_vertex, since the maximum depth can be equal to number of vertices -1.
 template <class EdgeType>
-void breadthFirstSearch(std::vector<std::vector<EdgeType>>& adjacency_list,
-                        int start_vertex, std::vector<int>& depth_values,
+void breadthFirstSearch(std::vector<std::vector<EdgeType>> &adjacency_list,
+                        int start_vertex, std::vector<int> &depth_values,
                         bool reverse = false, bool print_result = false) {
   using capacity_t = typename EdgeType::capacity_type;
   int num_vertices = adjacency_list.size();
@@ -183,4 +185,4 @@ isMaximumFlow(std::vector<std::vector<EdgeType>> &adjacency_list, int source,
           (validity_result.second && (depth_values[source] == num_vertices))};
 }
 
-#endif // HELPER_GRAPH_ALGORITHM_HPP_INCLUDED 
+#endif // HELPER_GRAPH_ALGORITHM_HPP_INCLUDED

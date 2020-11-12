@@ -224,10 +224,10 @@ void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
       // that starts from the smaller vertex number when complementation is not
       // taken into account.
       if (to_vertex_base > from_vertex_base) {
-        int symmetric_edge_idx = eit->reverse_edge_index;
+        auto symmetric_eit = _adjacency_list[to_vertex_complement].begin() +
+                             eit->symmetric_edge_index;
         capacity_t edge_residual = eit->residual;
-        capacity_t symmetric_edge_residual =
-            _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual;
+        capacity_t symmetric_edge_residual = symmetric_eit->residual;
         // The paper states that we should average the residuals and assign the
         // average, but to avoid underflow we do not divide by two but to keep
         // the flow valid we multiply the capacities by 2. The doubling of
@@ -235,11 +235,9 @@ void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
         // help us verify if the symmetric flow is a valid flow or not.
         capacity_t residual_sum = edge_residual + symmetric_edge_residual;
         eit->residual = residual_sum;
-        _adjacency_list[to_vertex_complement][symmetric_edge_idx].residual =
-            residual_sum;
         eit->scaleCapacity(2);
-        _adjacency_list[to_vertex_complement][symmetric_edge_idx].scaleCapacity(
-            2);
+        symmetric_eit->residual = residual_sum;
+        symmetric_eit->scaleCapacity(2);
       }
     }
   }
