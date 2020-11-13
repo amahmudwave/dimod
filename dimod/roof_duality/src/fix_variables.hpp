@@ -25,7 +25,7 @@
 #include "dimod/adjarraybqm.h"
 #include "dimod/adjmapbqm.h"
 #include "dimod/adjvectorbqm.h"
-#include "max_flow.hpp"
+#include "push_relabel.hpp"
 #include "posiform_info.hpp"
 #include "implication_network.hpp"
 #include "helper_graph_algorithms.hpp"

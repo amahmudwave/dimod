@@ -23,8 +23,8 @@
 #
 ================================================================================================
 */
-#ifndef MAX_FLOW_HPP_INCLUDED
-#define MAX_FLOW_HPP_INCLUDED
+#ifndef PUSH_RELABEL_HPP_INCLUDED
+#define PUSH_RELABEL_HPP_INCLUDED
 
 #include <algorithm>
 #include <iostream>
@@ -364,4 +364,4 @@ PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
   return _vertices[_sink].excess;
 }
 
-#endif // MAX_FLOW_HPP_INCLUDED
+#endif // MAX_PUSH_RELABEL_INCLUDED
