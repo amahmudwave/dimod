@@ -82,28 +82,28 @@ private:
   //     _vertices[to_vertex].excess += flow;
   // }
 
-  void discharge(int vertex);
-
   void relabel(int vertex);
 
-  void printLevels(); // For debuggin purposes.
+  void discharge(int vertex);
 
   // Relabel the vertices with the current distance from the sink, found by
   // using reverse breadth first search.
   void globalRelabel();
 
-  // When there is no vertex at a particular height/distance from sink, all the
-  // other vertices at higher heights are then disconnected from the sink, so
-  // label them as such (set their height to number of vertices) so they are not
-  // processed during the computation of the preflow.
+  // When there is no vertex at a particular height/distance from the sink, all
+  // the other vertices at higher heights are then disconnected from the sink,
+  // so label them as such (set their height to the number of vertices) so they
+  // are not processed during the computation of the preflow.
   void gapRelabel(int empty_level_height);
 
   // Get the iterator pair of edges which need to be processed for a vertex next
-  // time it is encountered, we may want to skip the ones which have been
+  // time it is encountered, we may want to skip the edges which have been
   // saturated already before relabeling of the vertex happened.
   std::pair<edge_iterator, edge_iterator> outEdges(int vertex) {
     return {_adjacency_list[vertex].begin(), _adjacency_list[vertex].end()};
   }
+
+  void printLevels(); // For debuggin purposes.
 
 private:
   int _sink;
@@ -120,6 +120,9 @@ private:
   std::vector<std::pair<edge_iterator, edge_iterator>> _pending_out_edges;
 };
 
+// We assume that the flow graph has the correct residuals assigned to the
+// edges. Or namely initial value of residual of an edge is equal to its
+// capacity.
 template <class EdgeType>
 PushRelabelSolver<EdgeType>::PushRelabelSolver(
     std::vector<std::vector<EdgeType>> &adjacency_list, int source, int sink)
@@ -144,12 +147,13 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
   _vertices[_source].height = _num_vertices;
   _vertices[_sink].height = 0;
 
-  edge_iterator it, itEnd;
-  for (std::tie(it, itEnd) = outEdges(_source); it != itEnd; it++) {
-    capacity_t flow = it->residual;
-    _adjacency_list[it->to_vertex][it->reverse_edge_index].residual += flow;
-    it->residual = 0;
-    _vertices[it->to_vertex].excess += flow;
+  // Saturate the edges coming out of the source.`
+  edge_iterator eit, eit_end;
+  for (std::tie(eit, eit_end) = outEdges(_source); eit != eit_end; eit++) {
+    capacity_t flow = eit->residual;
+    _adjacency_list[eit->to_vertex][eit->reverse_edge_index].residual += flow;
+    eit->residual = 0;
+    _vertices[eit->to_vertex].excess += flow;
     _num_pushes++;
   }
 
@@ -172,6 +176,9 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
   _max_active_height = 0;
   _min_active_height = _num_vertices;
 
+  // The value of height being the number of vertices means it is not reachable
+  // from the sink as the value of height can be at most one less than the
+  // number of vertices.
   for (int i = 0; i < _num_vertices; i++) {
     _vertices[i].height = _num_vertices;
   }
@@ -182,10 +189,10 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
   while (!_vertex_queue.empty()) {
     int v_parent = _vertex_queue.pop();
     int current_height = _vertices[v_parent].height + 1;
-    edge_iterator it, itEnd;
-    for (std::tie(it, itEnd) = outEdges(v_parent); it != itEnd; it++) {
-      int to_vertex = it->to_vertex;
-      if (it->getReverseEdgeResidual() &&
+    edge_iterator eit, eit_end;
+    for (std::tie(eit, eit_end) = outEdges(v_parent); eit != eit_end; eit++) {
+      int to_vertex = eit->to_vertex;
+      if (eit->getReverseEdgeResidual() &&
           _vertices[to_vertex].height == _num_vertices) {
         _vertices[to_vertex].height = current_height;
         if (_vertices[to_vertex].excess > 0) {
@@ -210,12 +217,34 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
 }
 
 template <class EdgeType>
+void PushRelabelSolver<EdgeType>::relabel(int vertex) {
+  int min_relabel_height = _num_vertices;
+  _vertices[vertex].height = min_relabel_height;
+  edge_iterator eit, eit_end, eit_min_relabel;
+  for (std::tie(eit, eit_end) = outEdges(vertex); eit != eit_end; eit++) {
+    if (eit->residual) {
+      int to_vertex = eit->to_vertex;
+      if (_vertices[to_vertex].height < min_relabel_height) {
+        min_relabel_height = _vertices[to_vertex].height;
+        eit_min_relabel = eit;
+      }
+    }
+  }
+  min_relabel_height++;
+  if (min_relabel_height < _num_vertices) {
+    _vertices[vertex].height = min_relabel_height;
+    _pending_out_edges[vertex].first = eit_min_relabel;
+    _max_height = std::max(min_relabel_height, _max_height);
+  }
+}
+
+template <class EdgeType>
 void PushRelabelSolver<EdgeType>::discharge(int vertex) {
   assert(_vertices[vertex].excess > 0);
   while (1) {
-    edge_iterator eit, eitEnd;
+    edge_iterator eit, eit_end;
     int pushable_height = _vertices[vertex].height - 1;
-    for (std::tie(eit, eitEnd) = _pending_out_edges[vertex]; eit != eitEnd;
+    for (std::tie(eit, eit_end) = _pending_out_edges[vertex]; eit != eit_end;
          eit++) {
       if (eit->residual) {
         int to_vertex = eit->to_vertex;
@@ -226,7 +255,7 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
             _levels[pushable_height].active_vertices.push_front(
                 &_vertices[to_vertex]);
           }
-          // Push flow inlined here
+          // Push flow inlined here: push(eit);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
           eit->residual -= flow;
           _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
@@ -244,7 +273,9 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
       _min_active_height = std::min(pushable_height, _min_active_height);
     }
 
-    if (eit == eitEnd) {
+    // The loop did not break thus the vertex still has some excess flow to
+    // discharge so relabel.
+    if (eit == eit_end) {
       int preRelabelHeight = _vertices[vertex].height;
       relabel(vertex);
       if (_levels[preRelabelHeight].active_vertices.empty() &&
@@ -273,6 +304,7 @@ template <class EdgeType>
 void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
   for (auto levelIt = _levels.begin() + empty_level_height + 1;
        levelIt <= _levels.begin() + _max_height; levelIt++) {
+    // The last highest active vertex processed was from the empty_level_height.
     assert(levelIt->active_vertices.empty());
     int inactive_level_size = levelIt->inactive_vertices.size();
     vertex_node_t *vertex_node_ptr = levelIt->inactive_vertices.front();
@@ -288,12 +320,33 @@ void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
   assert(_max_active_height >= 0 && _max_active_height < _num_vertices);
 }
 
+template <class EdgeType>
+typename EdgeType::capacity_type
+PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
+  while (_max_active_height >= _min_active_height) {
+    // std::cout<< " Max active height " << _max_active_height <<" Min active
+    // height " << _min_active_height << std::endl;
+    if (_levels[_max_active_height].active_vertices.empty()) {
+      _max_active_height--;
+    } else {
+      vertex_node_t *vertex_node_ptr =
+          _levels[_max_active_height].active_vertices.pop();
+      // std::cout << " Going to discharge " << vertex_node_ptr->vertex_number
+      // << " at height " << _vertices[vertex_node_ptr->vertex_number].height <<
+      // std::endl;
+      discharge(vertex_node_ptr->vertex_number);
+    }
+  }
+  return _vertices[_sink].excess;
+}
+
 template <class EdgeType> void PushRelabelSolver<EdgeType>::printLevels() {
   std::cout << "Printing Levels. " << _levels.size() << " in total for "
             << _num_vertices << " vertices." << std::endl;
   for (int i = 0; i < _levels.size(); i++) {
     int size_active = _levels[i].active_vertices.size();
     int size_inactive = _levels[i].inactive_vertices.size();
+
     if ((size_active == 0) && (size_inactive == 0)) {
       continue;
     }
@@ -320,48 +373,6 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printLevels() {
     }
     std::cout << std::endl;
   }
-}
-
-template <class EdgeType>
-void PushRelabelSolver<EdgeType>::relabel(int vertex) {
-  int min_relabel_height = _num_vertices;
-  _vertices[vertex].height = min_relabel_height;
-  edge_iterator eit, eitEnd, eit_min_relabel;
-  for (std::tie(eit, eitEnd) = outEdges(vertex); eit != eitEnd; eit++) {
-    if (eit->residual) {
-      int to_vertex = eit->to_vertex;
-      if (_vertices[to_vertex].height < min_relabel_height) {
-        min_relabel_height = _vertices[to_vertex].height;
-        eit_min_relabel = eit;
-      }
-    }
-  }
-  min_relabel_height++;
-  if (min_relabel_height < _num_vertices) {
-    _vertices[vertex].height = min_relabel_height;
-    _pending_out_edges[vertex].first = eit_min_relabel;
-    _max_height = std::max(min_relabel_height, _max_height);
-  }
-}
-
-template <class EdgeType>
-typename EdgeType::capacity_type
-PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
-  while (_max_active_height >= _min_active_height) {
-    // std::cout<< " Max active height " << _max_active_height <<" Min active
-    // height " << _min_active_height << std::endl;
-    if (_levels[_max_active_height].active_vertices.empty()) {
-      _max_active_height--;
-    } else {
-      vertex_node_t *vertex_node_ptr =
-          _levels[_max_active_height].active_vertices.pop();
-      // std::cout << " Going to discharge " << vertex_node_ptr->vertex_number
-      // << " at height " << _vertices[vertex_node_ptr->vertex_number].height <<
-      // std::endl;
-      discharge(vertex_node_ptr->vertex_number);
-    }
-  }
-  return _vertices[_sink].excess;
 }
 
 #endif // MAX_PUSH_RELABEL_INCLUDED
