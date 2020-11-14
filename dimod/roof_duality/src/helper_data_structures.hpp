@@ -52,6 +52,8 @@ public:
   bool empty() const noexcept { return _front == _back; }
 
   void reset() noexcept { _front = _back = 0; }
+
+  int size() noexcept { return _back - _front; }
 };
 
 // Linked list that uses preallocated nodes.

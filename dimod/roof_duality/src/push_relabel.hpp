@@ -186,7 +186,8 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
 }
 
 // Relabel the vertices with the current distance from the sink, found by
-// using reverse breadth first search.
+// using reverse breadth first search. Assumes that the unreachable vertices are
+// marked as such.
 template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
   DEBUG_INCREMENT(_num_global_relabels);
   for (int h = 0; h <= _max_height; h++) {
@@ -200,13 +201,23 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
   // The value of height being the number of vertices means it is not reachable
   // from the sink as the value of height can be at most one less than the
   // number of vertices.
+  int already_unreachable = 0;
+  assert((_vertices[_sink] != _num_vertices) &&
+         "Sink should have been reachable before globalRelabel");
   for (int i = 0; i < _num_vertices; i++) {
-    _vertices[i].height = _num_vertices;
+    if (_vertices[i].height == _num_vertices) {
+      already_unreachable++;
+    } else {
+      _vertices[i].height = _num_vertices;
+    }
   }
 
+  int num_vertices_to_find = _num_vertices - already_unreachable;
+  int num_vertices_found = 0;
   _vertices[_sink].height = 0;
   _vertex_queue.reset(); // Reset as we are reusing the queue.
   _vertex_queue.push(_sink);
+  num_vertices_found++; // We had assumed sink is reachable, so reaching it.
   while (!_vertex_queue.empty()) {
     int v_parent = _vertex_queue.pop();
     int current_height = _vertices[v_parent].height + 1;
@@ -223,6 +234,7 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
           _levels[current_height].inactive_vertices.push_front(
               &_vertices[to_vertex]);
         }
+        num_vertices_found++;
         _vertex_queue.push(to_vertex);
       }
     }
@@ -233,6 +245,11 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
       _min_active_height = std::min(current_height, _min_active_height);
     } else if (!_levels[current_height].inactive_vertices.empty()) {
       _max_height = std::max(current_height, _max_height);
+    }
+
+    if (num_vertices_found == num_vertices_to_find) {
+      _vertex_queue.reset();
+      break;
     }
   }
 }
