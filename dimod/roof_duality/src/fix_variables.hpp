@@ -1414,7 +1414,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
-
+     pushRelab.printStatistics();
      curr_1 = clock();
      implNet.makeResidualSymmetric();
      curr_2 = clock();

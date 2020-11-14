@@ -33,6 +33,14 @@
 
 #include "helper_data_structures.hpp"
 
+//#define COLLECT_STATISTICS
+
+#ifdef COLLECT_STATISTICS
+#define DEBUG_INCREMENT(x) ((x)++)
+#else
+#define DEBUG_INCREMENT(x)
+#endif
+
 // Maximum flow solver based on Push-Relabel algorithm, using the heuristics of
 // Global Relabeling, Gap Relabeling, & Highest Vertex First. This is based on
 // Cherkassky, B., Goldberg, A. On Implementing the Push-Relabel Method for the
@@ -42,7 +50,6 @@ template <class EdgeType> class PushRelabelSolver {
 public:
   using edge_iterator = typename vector<EdgeType>::iterator;
   using capacity_t = typename EdgeType::capacity_type;
-  using edge_size_t = size_t;
 
   // We use preallocated vertex nodes for maintaining the linked list since we
   // know the total number of vertices. Vertex number is redundant but when
@@ -67,6 +74,8 @@ public:
                     int source, int sink);
 
   capacity_t computeMaximumPreflow();
+
+  void printStatistics();
 
 private:
   // This will always be manually inlined, without relying on the compiler to do
@@ -103,15 +112,22 @@ private:
     return {_adjacency_list[vertex].begin(), _adjacency_list[vertex].end()};
   }
 
-  void printLevels(); // For debuggin purposes.
+  void printLevels();
 
 private:
   int _sink;
   int _source;
   int _num_vertices;
-  edge_size_t _num_edges;
+  size_t _num_edges;
   int _max_active_height, _min_active_height, _max_height;
-  size_t _num_global_relabels, _num_gap_relabels, _num_pushes, _num_relabels;
+  size_t _num_global_relabels, _num_gap_relabels, _num_gap_vertices,
+      _num_pushes, _num_relabels;
+
+  // Thresholds and counters for triggering global relabeling.
+  size_t _relabel_work;
+  size_t GLOBAL_RELABEL_THRESHOLD;
+  static const int ALPHA = 6, BETA = 12;
+  static constexpr double GLOBAL_RELABEL_FREQUENCY = 0.5;
 
   std::vector<level_t> _levels;
   std::vector<vertex_node_t> _vertices;
@@ -130,6 +146,7 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
       _vertex_queue(vector_based_queue<int>(adjacency_list.size())) {
   _num_global_relabels = 0;
   _num_gap_relabels = 0;
+  _num_gap_vertices = 0;
   _num_relabels = 0;
   _num_pushes = 0;
   _num_vertices = _adjacency_list.size();
@@ -137,15 +154,19 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
   _levels.resize(_num_vertices);
   _pending_out_edges.resize(_num_vertices);
 
+  _num_edges = 0;
   for (int v = 0; v < _num_vertices; v++) {
     _pending_out_edges[v] = {_adjacency_list[v].begin(),
                              _adjacency_list[v].end()};
     _vertices[v].vertex_number = v;
     _vertices[v].height = 1;
     _vertices[v].excess = 0;
+    _num_edges += _adjacency_list[v].size();
   }
   _vertices[_source].height = _num_vertices;
   _vertices[_sink].height = 0;
+
+  GLOBAL_RELABEL_THRESHOLD = (ALPHA * _num_vertices) + (_num_edges / 2);
 
   // Saturate the edges coming out of the source.`
   edge_iterator eit, eit_end;
@@ -154,7 +175,7 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
     _adjacency_list[eit->to_vertex][eit->reverse_edge_index].residual += flow;
     eit->residual = 0;
     _vertices[eit->to_vertex].excess += flow;
-    _num_pushes++;
+    DEBUG_INCREMENT(_num_pushes);
   }
 
   _max_height = 1;
@@ -167,7 +188,7 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
 // Relabel the vertices with the current distance from the sink, found by
 // using reverse breadth first search.
 template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
-  _num_global_relabels++;
+  DEBUG_INCREMENT(_num_global_relabels);
   for (int h = 0; h <= _max_height; h++) {
     _levels[h].active_vertices.clear();
     _levels[h].inactive_vertices.clear();
@@ -218,10 +239,13 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
 
 template <class EdgeType>
 void PushRelabelSolver<EdgeType>::relabel(int vertex) {
+  DEBUG_INCREMENT(_num_relabels);
   int min_relabel_height = _num_vertices;
   _vertices[vertex].height = min_relabel_height;
   edge_iterator eit, eit_end, eit_min_relabel;
-  for (std::tie(eit, eit_end) = outEdges(vertex); eit != eit_end; eit++) {
+  std::tie(eit, eit_end) = outEdges(vertex);
+  _relabel_work += BETA + std::distance(eit, eit_end);
+  for (; eit != eit_end; eit++) {
     if (eit->residual) {
       int to_vertex = eit->to_vertex;
       if (_vertices[to_vertex].height < min_relabel_height) {
@@ -230,6 +254,7 @@ void PushRelabelSolver<EdgeType>::relabel(int vertex) {
       }
     }
   }
+
   min_relabel_height++;
   if (min_relabel_height < _num_vertices) {
     _vertices[vertex].height = min_relabel_height;
@@ -256,6 +281,7 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
                 &_vertices[to_vertex]);
           }
           // Push flow inlined here: push(eit);
+          DEBUG_INCREMENT(_num_pushes);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
           eit->residual -= flow;
           _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
@@ -281,6 +307,12 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
       if (_levels[preRelabelHeight].active_vertices.empty() &&
           _levels[preRelabelHeight].inactive_vertices.empty()) {
         gapRelabel(preRelabelHeight);
+        // We just relabelled all the vertices at its previous height to a
+        // height of the number of vertices, so this vertex does not have any
+        // residual edge to a vertex that has height/distance one less than its
+        // current height, since the level at that height is empty. So we set
+        // this one to a height of _num_vertices as well.
+        _vertices[vertex].height = _num_vertices;
       }
       if (_vertices[vertex].height == _num_vertices) {
         break;
@@ -302,17 +334,21 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
 // processed during the computation of the preflow.
 template <class EdgeType>
 void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
-  for (auto levelIt = _levels.begin() + empty_level_height + 1;
-       levelIt <= _levels.begin() + _max_height; levelIt++) {
+  DEBUG_INCREMENT(_num_gap_relabels);
+  assert(empty_level_height <= _max_height);
+  auto level_it = _levels.begin() + empty_level_height + 1;
+  auto level_it_end = _levels.begin() + _max_height + 1;
+  for (; level_it != level_it_end; level_it++) {
     // The last highest active vertex processed was from the empty_level_height.
-    assert(levelIt->active_vertices.empty());
-    int inactive_level_size = levelIt->inactive_vertices.size();
-    vertex_node_t *vertex_node_ptr = levelIt->inactive_vertices.front();
+    assert(level_it->active_vertices.empty());
+    int inactive_level_size = level_it->inactive_vertices.size();
+    vertex_node_t *vertex_node_ptr = level_it->inactive_vertices.front();
     for (int i = 0; i < inactive_level_size; i++) {
       _vertices[vertex_node_ptr->vertex_number].height = _num_vertices;
       vertex_node_ptr = vertex_node_ptr->next;
+      DEBUG_INCREMENT(_num_gap_vertices);
     }
-    levelIt->inactive_vertices.clear();
+    level_it->inactive_vertices.clear();
   }
   _max_height = empty_level_height - 1;
   _max_active_height = empty_level_height - 1;
@@ -323,6 +359,8 @@ void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
 template <class EdgeType>
 typename EdgeType::capacity_type
 PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
+
+  _relabel_work = 0;
   while (_max_active_height >= _min_active_height) {
     // std::cout<< " Max active height " << _max_active_height <<" Min active
     // height " << _min_active_height << std::endl;
@@ -335,6 +373,11 @@ PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
       // << " at height " << _vertices[vertex_node_ptr->vertex_number].height <<
       // std::endl;
       discharge(vertex_node_ptr->vertex_number);
+    }
+
+    if (_relabel_work * GLOBAL_RELABEL_FREQUENCY > GLOBAL_RELABEL_THRESHOLD) {
+      globalRelabel();
+      _relabel_work = 0;
     }
   }
   return _vertices[_sink].excess;
@@ -373,6 +416,23 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printLevels() {
     }
     std::cout << std::endl;
   }
+}
+
+template <class EdgeType> void PushRelabelSolver<EdgeType>::printStatistics() {
+#ifdef COLLECT_STATISTICS
+  std::cout << std::endl;
+  std::cout << "Printing Statistics : " << std::endl << std::endl;
+  std::cout << "Number of Pushes : " << _num_pushes << std::endl;
+  std::cout << "Number of Relabels : " << _num_relabels << std::endl;
+  std::cout << "Number of Global Relabels : " << _num_global_relabels
+            << std::endl;
+  std::cout << "Number of Gap Relabels : " << _num_gap_relabels << std::endl;
+  std::cout << "Number of Gap Vertices : " << _num_gap_vertices << std::endl;
+  std::cout << std::endl;
+#else
+  std::cout << std::endl;
+  std::cout << "Statistics not collected." << std::endl << std::endl;
+#endif
 }
 
 #endif // MAX_PUSH_RELABEL_INCLUDED
