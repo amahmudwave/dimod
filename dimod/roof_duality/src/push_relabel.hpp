@@ -522,13 +522,14 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
         for (; _pending_out_edges[from_vertex].first !=
                _pending_out_edges[from_vertex].second;
              _pending_out_edges[from_vertex]++) {
-          auto &eit = _pending_out_edges[from_vertex];
+          auto &eit_candidate = _pending_out_edges[from_vertex];
 
           // The edge brings flow to the from_vertex, we want to topologically
           // sort such that the root receives flow from the source through its
           // children, so that we can push them back.
-          if (eit->getCapacity() == 0 && eit->residual > 0) {
-            int to_vertex = eit->to_vertex;
+          if (eit_candidate->getCapacity() == 0 &&
+              eit_candidate->residual > 0) {
+            int to_vertex = eit_candidate->to_vertex;
             if (dfs_color[to_vertex] == DFS_COLOR::WHITE) {
               dfs_color[to_vertex] = DFS_COLOR::GRAY;
 
@@ -546,6 +547,15 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
             // then back off to the edge that is eliminated first to remove the
             // cycle and restart DFS.
             else if (dfs_color[to_vertex] == DFS_COLOR::GRAY) {
+              // We chose to enter the condition only for reverse/residual edges
+              // and also made sure we incremented the array of iterators i.e
+              // the _pending_out_edges, thus we can cycle over the cycle found,
+              // as the path formed by the iterators saved in _pending_out_edges
+              // outlines the cycle we just discovered.
+              capacity_t min_flow = eit->residual;
+              while (true) {
+                auto &eit =
+              }
             }
           }
         }
