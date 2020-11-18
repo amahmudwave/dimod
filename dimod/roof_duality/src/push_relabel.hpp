@@ -473,27 +473,17 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printStatistics() {
 // create a self loop for X_i or X_i'.
 template <class EdgeType>
 void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
-  int topology_start_vertex = -1;
-  int topology_end_vertex = -1;
-  bool topology_intialized = false;
 
-  std::vector<int> parent(_num_vertices);
-  std::vector<int> topology(_num_vertices);
-
-  // White - not processed yet.
-  // Grey - under process.
-  // Black - finished processing.
-  enum DFS_COLOR { WHITE, GREY, BLACK };
-  std::vector<int> dfs_color(_num_vertices, DFS_COLOR::WHITE);
-
+  // Certain graphs, like the implication networks formed from posiforms are
+  // guaranteed not to contain self loops thus processing them is optional. If
+  // there are self loops then we can just eliminate the flow, as it does not
+  // contribute to the excess of the vertex.
   if (handle_self_loops) {
     for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
       edge_iterator eit, eit_end;
       for (std::tie(eit, eit_end) = outEdges(from_vertex); eit != eit_end;
            eit++) {
         if (eit->to_vertex == from_vertex) {
-          // Residual set to capacity means there is no flow, in an edge. For
-          // reverse edges where capacity is zero residual is also set to zero.
           eit->residual = eit->getCapacity();
         }
       }
@@ -501,67 +491,182 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
   }
 
   // Initialize for DFS.
+  int topology_start_vertex = -1;
+  bool topology_intialized = false;
+  std::vector<int> parent(_num_vertices);
+
+  // An entry of -1 for a vertex would mean there is no successor to that vertex
+  // in the topological ordering we create for removing excess flow.
+  std::vector<int> topology_next(_num_vertices, -1);
+
+  // White - not processed yet.
+  // Grey - under process.
+  // Black - finished processing.
+  enum DFS_COLOR { WHITE, GREY, BLACK };
+  std::vector<int> dfs_color(_num_vertices, DFS_COLOR::WHITE);
+
   for (int vertex = 0; vertex < _num_vertices; vertex++) {
+    // TODO : Remove ? We fillup the parents as we go , why initialize here ?
     parent[vertex] = vertex;
     _pending_out_edges[vertex] = outEdges(vertex);
   }
 
   // Iterative DFS.
-  for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
-    if ((dfs_color[from_vertex] == DFS_COLOR::WHITE) &&
-        (_vertices[from_vertex].excess > 0) && (from_vertex != _source) &&
-        (from_vertex != _sink)) {
-      int root_vertex = from_vertex; // The root of a dfs tree.
+  for (int parent_vertex = 0; parent_vertex < _num_vertices; parent_vertex++) {
+    if ((dfs_color[parent_vertex] == DFS_COLOR::WHITE) &&
+        (_vertices[parent_vertex].excess > 0) && (parent_vertex != _source) &&
+        (parent_vertex != _sink)) {
+      int root_vertex = parent_vertex; // The root of a dfs tree.
       dfs_color[root_vertex] = DFS_COLOR::GREY;
       while (true) {
-        // We need to increment the actual iterator in the stored array, think
+        // We need to increment the actual iterator in the array. Think
         // of recursive dfs, the counter of a for loop belonging to a particular
         // stack frame is saved in the stack frame while the function calls
         // itself recursively so when it comes back it finds the counter with
         // the proper value.
-        for (; _pending_out_edges[from_vertex].first !=
-               _pending_out_edges[from_vertex].second;
-             _pending_out_edges[from_vertex]++) {
-          auto &eit_candidate = _pending_out_edges[from_vertex];
+        for (; _pending_out_edges[parent_vertex].first !=
+               _pending_out_edges[parent_vertex].second;
+             _pending_out_edges[parent_vertex]++) {
+          // We are traversing reverse edges with capacity 0, i.e the children
+          // are sending flow to the parent. So we denote the main iterator by
+          // eit_reverse unlike other places in the file.
+          auto eit_reverse = _pending_out_edges[parent_vertex];
 
-          // The edge brings flow to the from_vertex, we want to topologically
+          // The edge brings flow to the parent_vertex, we want to topologically
           // sort such that the root receives flow from the source through its
           // children, so that we can push them back.
-          if (eit_candidate->getCapacity() == 0 &&
-              eit_candidate->residual > 0) {
-            int to_vertex = eit_candidate->to_vertex;
-            if (dfs_color[to_vertex] == DFS_COLOR::WHITE) {
-              dfs_color[to_vertex] = DFS_COLOR::GRAY;
+          if ((eit_reverse->getCapacity() == 0) &&
+              (eit_reverse->residual > 0)) {
+            int current_vertex = eit_reverse->to_vertex;
+            if (dfs_color[current_vertex] == DFS_COLOR::WHITE) {
+              dfs_color[current_vertex] = DFS_COLOR::GRAY;
 
               // Equivalent to calling dfs, i.e pushing into the stack. The
               // while loop above will start the for loop all over again, but
-              // this time the from_vertex will be the to_vertex, and we will be
-              // able to trace back as the parent-child relationship is saved in
-              // the parent array.
-              parent[to_vertex] = from_vertex;
-              from_vertex = to_vertex;
+              // this time the parent_vertex will be the current_vertex, and we
+              // will be able to trace back as the parent-child relationship is
+              // saved in the parent array.
+              parent[current_vertex] = parent_vertex;
+              parent_vertex = current_vertex;
               break;
             }
 
             // We have detected a cycle, now we need to eliminate the cycle and
-            // then back off to the edge that is eliminated first to remove the
-            // cycle and restart DFS.
-            else if (dfs_color[to_vertex] == DFS_COLOR::GRAY) {
+            // then back the DFS up to the vertex from which emanates the first
+            // edge that is saturated/flow nullified in order to remove the
+            // cycle.
+            else if (dfs_color[current_vertex] == DFS_COLOR::GRAY) {
               // We chose to enter the condition only for reverse/residual edges
               // and also made sure we incremented the array of iterators i.e
               // the _pending_out_edges, thus we can cycle over the cycle found,
               // as the path formed by the iterators saved in _pending_out_edges
-              // outlines the cycle we just discovered.
-              capacity_t min_flow = eit->residual;
+              // outlines the cycle we just discovered. The value of residual in
+              // a reverse edge is equal to the flow in the orignal edge, we are
+              // currently traversing reverse edges, so take the minimum of
+              // residuals.
+              capacity_t min_flow = eit_reverse->residual;
               while (true) {
-                auto &eit =
+                min_flow =
+                    std::min(_pending_out_edges[current_vertex].first->residual,
+                             min_flow);
+                if (current_vertex == parent_vertex) {
+                  break;
+                } else {
+                  current_vertex =
+                      _pending_out_edges[current_vertex].first->current_vertex;
+                }
               }
+              current_vertex = parent_vertex;
+
+              // Reduce the flow in the edge with minimum flow in the cycle,
+              // that is saturate the reverse edge or say zero out the residual
+              // and increase its flow from negative of the residual to zero.
+              int restart_vertex = parent_vertex;
+              bool restart_found = false;
+              while (true) {
+                eit_reverse = _pending_out_edges[current_vertex];
+                eit_reverse->residual -= min_flow;
+                auto eit = _adjacency_list[eit_reverse->to_vertex].begin() +
+                           eit_reverse->reverse_edge_index;
+                eit->residual += min_flow;
+
+                if (eit->residual == 0 && !restart_found) {
+                  restart_found = true;
+                  retstart_vertex = current_vertex;
+                } else if (restart_found) {
+                  dfs_color[eit->to_vertex] = DFS_COLOR::WHITE;
+                }
+                current_vertex = eit_reverse->to_vertex;
+                if (current_vertex == parent_vertex) {
+                  break;
+                }
+              }
+              if (restart_vertex != parent_vertex) {
+                parent_vertex = restart_vertex;
+                _pending_out_edges[parent_vertex]++;
+                break;
+              }
+            } // else if (dfs_color[current_vertex] == DFS_COLOR::GRAY)
+          }   // if ((..->getCapacity() == 0) && (..->residual > 0))
+        }     // for (; _pending_out_edges[parent_vertex]...
+
+        // The current parent has finished all its edges, we can put it in its
+        // proper place in the topological order, and then backtrack.
+        if (_pending_out_edges[parent_vertex].first ==
+            _pending_out_edges[parent_vertex].second) {
+          dfs_color[parent_vertex] = DFS_COLOR::BLACK;
+          if (parent_vertex != _source) {
+            if (!topology_initialized) {
+              topology_start_vertex = parent_vertex;
+              topology_initialized = true;
+            } else {
+              topology_next[parent_vertex] = topology_start_vertex;
+              topology_start_vertex = parent_vertex;
             }
           }
+
+          // If it is a root, then we break the while loop and the for loop
+          // above will automatically select the next vertex therwise we have to
+          // do it here. It is similar to the situation that in a dfs a wrapper
+          // function calls the first instance of dfs and before the call there
+          // is no stackframe for dfs function. In the case it is not the root
+          // we need to simulate the popping of the stack, this we do by setting
+          // the parent_vertex to be the parent of the parent_vertex, and
+          // incrementing the edge iterator, and the for loop will start again
+          // for the parent. Note: in general the parent_vertex is changing
+          // within the loop so the edge iterator for the original parent_vertex
+          // does not get incremented until and unless edges which cannot be
+          // traversed are encountered, we increment it when all children have
+          // been traversed like here.
+          if (parent_vertex != root) {
+            parent_vertex = parent[parent_vertex];
+            _pending_out_edges[parent_vertex]++;
+          } else {
+            break;
+          }
         }
+      } // while(true)
+    }   // if(dfs_color[parent_vertex] == DFS_COLOR::WHITE...
+  }     // for(int parent_vertex = 0; ...
+
+  // Remember topology_next[vertex] == -1 means there is nothing after the
+  // vertex in topological ordering.
+  if (topology_initialized) {
+    for (vertex = topology_start; vertex >= 0; vertex = topology_next[vertex]) {
+      edge_iterator eit, eit_end;
+      std::tie(eit, eit_end) = outEdges(vertex);
+      while ((_vertices[vertex].excess > 0) && (eit != eit_end)) {
+        DEBUG_INCREMENT(_num_pushes);
+        int to_vertex = eit->to_vertex;
+        capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
+        eit->residual -= flow;
+        _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
+        _vertices[vertex].excess -= flow;
+        _vertices[to_vertex].excess += flow;
+        eit++;
       }
     }
-  } // DFS main loop on from_vertex
-}
+  }
+} // end convertPreflowToFlow
 
 #endif // MAX_PUSH_RELABEL_INCLUDED
