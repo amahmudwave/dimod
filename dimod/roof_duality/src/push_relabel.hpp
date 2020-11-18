@@ -473,19 +473,18 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printStatistics() {
 // create a self loop for X_i or X_i'.
 template <class EdgeType>
 void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
-  int root_vertex, restart_vertex, from_vertex, to_vertex;
   int topology_start_vertex = -1;
   int topology_end_vertex = -1;
   bool topology_intialized = false;
 
-  std::vector<int> parents(_num_vertices);
+  std::vector<int> parent(_num_vertices);
   std::vector<int> topology(_num_vertices);
 
   // White - not processed yet.
   // Grey - under process.
   // Black - finished processing.
   enum DFS_COLOR { WHITE, GREY, BLACK };
-  std::vector<int> dfs_colors(_num_vertices, DFS_COLOR::WHITE);
+  std::vector<int> dfs_color(_num_vertices, DFS_COLOR::WHITE);
 
   if (handle_self_loops) {
     for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
@@ -503,15 +502,54 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
 
   // Initialize for DFS.
   for (int vertex = 0; vertex < _num_vertices; vertex++) {
-    parents[vertex] = vertex;
+    parent[vertex] = vertex;
     _pending_out_edges[vertex] = outEdges(vertex);
   }
 
   // Iterative DFS.
   for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
-    if ((dfs_colors[from_vertex] == DFS_COLOR::WHITE) &&
+    if ((dfs_color[from_vertex] == DFS_COLOR::WHITE) &&
         (_vertices[from_vertex].excess > 0) && (from_vertex != _source) &&
         (from_vertex != _sink)) {
+      int root_vertex = from_vertex; // The root of a dfs tree.
+      dfs_color[root_vertex] = DFS_COLOR::GREY;
+      while (true) {
+        // We need to increment the actual iterator in the stored array, think
+        // of recursive dfs, the counter of a for loop belonging to a particular
+        // stack frame is saved in the stack frame while the function calls
+        // itself recursively so when it comes back it finds the counter with
+        // the proper value.
+        for (; _pending_out_edges[from_vertex].first !=
+               _pending_out_edges[from_vertex].second;
+             _pending_out_edges[from_vertex]++) {
+          auto &eit = _pending_out_edges[from_vertex];
+
+          // The edge brings flow to the from_vertex, we want to topologically
+          // sort such that the root receives flow from the source through its
+          // children, so that we can push them back.
+          if (eit->getCapacity() == 0 && eit->residual > 0) {
+            int to_vertex = eit->to_vertex;
+            if (dfs_color[to_vertex] == DFS_COLOR::WHITE) {
+              dfs_color[to_vertex] = DFS_COLOR::GRAY;
+
+              // Equivalent to calling dfs, i.e pushing into the stack. The
+              // while loop above will start the for loop all over again, but
+              // this time the from_vertex will be the to_vertex, and we will be
+              // able to trace back as the parent-child relationship is saved in
+              // the parent array.
+              parent[to_vertex] = from_vertex;
+              from_vertex = to_vertex;
+              break;
+            }
+
+            // We have detected a cycle, now we need to eliminate the cycle and
+            // then back off to the edge that is eliminated first to remove the
+            // cycle and restart DFS.
+            else if (dfs_color[to_vertex] == DFS_COLOR::GRAY) {
+            }
+          }
+        }
+      }
     }
   } // DFS main loop on from_vertex
 }
