@@ -33,7 +33,7 @@
 
 #include "helper_data_structures.hpp"
 
-//#define COLLECT_STATISTICS
+#define COLLECT_STATISTICS
 
 #ifdef COLLECT_STATISTICS
 #define DEBUG_INCREMENT(x) ((x)++)
@@ -74,6 +74,8 @@ public:
                     int source, int sink);
 
   capacity_t computeMaximumPreflow();
+
+  void convertPreflowToFlow(bool handle_self_loops = false);
 
   void printStatistics();
 
@@ -450,6 +452,68 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printStatistics() {
   std::cout << std::endl;
   std::cout << "Statistics not collected." << std::endl << std::endl;
 #endif
+}
+
+// This is the algorithm used in boost library. An iterative depth first search
+// (DFS) is applied to do a topological sort of the vertices with excess flow,
+// so flow can be pushed away from them in order and preflow be converted to
+// flow. A cycle in the directed graph would prevent a proper topological sort
+// thus in the same search if any flow cycle is detected, the cycle is cutoff by
+// reducing the flow by the minimum amount in the cycle, so that at least one
+// edge gets saturated, the depth first search then backs off or undoes what was
+// done from the point of the saturated edge, so that it can go on as before.
+// Note there will be no explicit stack used for this depth first search, but
+// instead the iterators pointing to the edges to be traversed for each vertex
+// will be updated and an array containing parents of vertices will act as the
+// stack. When we want to pop the stack we can basically look at the parent of
+// the current vertex being processed and when we want to push a vertex, we can
+// make it a parent for the next vertex while incrementing its edge iterator.
+// For solving max-flows on graphs induced from posiforms, we do not need to
+// consider self loops since we do induce terms terms like X_i*X_i' which might
+// create a self loop for X_i or X_i'.
+template <class EdgeType>
+void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
+  int root_vertex, restart_vertex, from_vertex, to_vertex;
+  int topology_start_vertex = -1;
+  int topology_end_vertex = -1;
+  bool topology_intialized = false;
+
+  std::vector<int> parents(_num_vertices);
+  std::vector<int> topology(_num_vertices);
+
+  // White - not processed yet.
+  // Grey - under process.
+  // Black - finished processing.
+  enum DFS_COLOR { WHITE, GREY, BLACK };
+  std::vector<int> dfs_colors(_num_vertices, DFS_COLOR::WHITE);
+
+  if (handle_self_loops) {
+    for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
+      edge_iterator eit, eit_end;
+      for (std::tie(eit, eit_end) = outEdges(from_vertex); eit != eit_end;
+           eit++) {
+        if (eit->to_vertex == from_vertex) {
+          // Residual set to capacity means there is no flow, in an edge. For
+          // reverse edges where capacity is zero residual is also set to zero.
+          eit->residual = eit->getCapacity();
+        }
+      }
+    }
+  }
+
+  // Initialize for DFS.
+  for (int vertex = 0; vertex < _num_vertices; vertex++) {
+    parents[vertex] = vertex;
+    _pending_out_edges[vertex] = outEdges(vertex);
+  }
+
+  // Iterative DFS.
+  for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
+    if ((dfs_colors[from_vertex] == DFS_COLOR::WHITE) &&
+        (_vertices[from_vertex].excess > 0) && (from_vertex != _source) &&
+        (from_vertex != _sink)) {
+    }
+  } // DFS main loop on from_vertex
 }
 
 #endif // MAX_PUSH_RELABEL_INCLUDED
