@@ -33,7 +33,7 @@
 
 #include "helper_data_structures.hpp"
 
-#define COLLECT_STATISTICS
+//#define COLLECT_STATISTICS
 
 #ifdef COLLECT_STATISTICS
 #define DEBUG_INCREMENT(x) ((x)++)

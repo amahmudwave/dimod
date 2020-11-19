@@ -1406,11 +1406,14 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      vector<int> bfsRes;
  
      long long int preflow = pushRelab.computeMaximumPreflow();
-      pushRelab.convertPreflowToFlow();
+     pushRelab.convertPreflowToFlow();
      curr_2 = clock();
      printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
+     auto res1  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
      std::cout <<"Preflow from written code : " << preflow <<std::endl;
+     std::cout << "Flow after validation " << res1.first <<  " is valid ? :" << res1.second << std::endl; 
+
      pushRelab.printStatistics();
      curr_1 = clock();
      implNet.makeResidualSymmetric();
