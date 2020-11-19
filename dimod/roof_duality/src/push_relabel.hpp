@@ -116,11 +116,12 @@ private:
   // Get the iterator pair of edges which need to be processed for a vertex next
   // time it is encountered, we may want to skip the edges which have been
   // saturated already before relabeling of the vertex happened.
-  inline std::pair<edge_iterator, edge_iterator> outEdges(int vertex) {
+  inline std::pair<edge_iterator, edge_iterator>
+  outEdges(const int &vertex) const {
     return {_adjacency_list[vertex].begin(), _adjacency_list[vertex].end()};
   }
 
-  inline edge_terator reverseEdgeIterator(edge_iterator eit) {
+  inline edge_iterator reverseEdgeIterator(const edge_iterator &eit) const {
     _adjacency_list[eit->to_vertex].begin() + eit->reverse_edge_index;
   }
 
