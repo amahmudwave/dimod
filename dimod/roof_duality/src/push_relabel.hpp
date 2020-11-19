@@ -27,6 +27,7 @@
 #
 ================================================================================================
 */
+
 #ifndef PUSH_RELABEL_HPP_INCLUDED
 #define PUSH_RELABEL_HPP_INCLUDED
 
@@ -253,11 +254,11 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
     }
 
     if (!_levels[current_height].active_vertices.empty()) {
-      _max_height = std::max(current_height, _max_height);
-      _max_active_height = std::max(current_height, _max_active_height);
-      _min_active_height = std::min(current_height, _min_active_height);
+      _max_height = std::max(_max_height, current_height);
+      _max_active_height = std::max(_max_active_height, current_height);
+      _min_active_height = std::min(_min_active_height, current_height);
     } else if (!_levels[current_height].inactive_vertices.empty()) {
-      _max_height = std::max(current_height, _max_height);
+      _max_height = std::max(_max_height, current_height);
     }
 
     if (num_vertices_found == num_vertices_to_find) {
@@ -289,7 +290,7 @@ void PushRelabelSolver<EdgeType>::relabel(int vertex) {
   if (min_relabel_height < _num_vertices) {
     _vertices[vertex].height = min_relabel_height;
     _pending_out_edges[vertex].first = eit_min_relabel;
-    _max_height = std::max(min_relabel_height, _max_height);
+    _max_height = std::max(_max_height, min_relabel_height);
   }
 }
 
@@ -330,8 +331,8 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
     }
 
     if (!_levels[pushable_height].active_vertices.empty()) {
-      _max_active_height = std::max(pushable_height, _max_active_height);
-      _min_active_height = std::min(pushable_height, _min_active_height);
+      _max_active_height = std::max(_max_active_height, pushable_height);
+      _min_active_height = std::min(_min_active_height, pushable_height);
     }
 
     // The loop did not break thus the vertex still has some excess flow to
@@ -537,9 +538,10 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
               capacity_t min_flow_magnitude = eit_reverse->residual;
               int cycle_traversing_vertex = current_vertex;
               while (cycle_traversing_vertex != parent_vertex) {
-                min_flow_magnitude = std::min(
-                    _pending_out_edges[cycle_traversing_vertex].first->residual,
-                    min_flow_magnitude);
+                min_flow_magnitude =
+                    std::min(min_flow_magnitude,
+                             _pending_out_edges[cycle_traversing_vertex]
+                                 .first->residual);
                 cycle_traversing_vertex =
                     _pending_out_edges[cycle_traversing_vertex]
                         .first->to_vertex;
@@ -712,4 +714,4 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::printStatistics() {
 #endif
 }
 
-#endif // MAX_PUSH_RELABEL_INCLUDED
+#endif // PUSH_RELABEL_INCLUDED

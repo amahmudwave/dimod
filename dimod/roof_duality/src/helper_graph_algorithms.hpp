@@ -16,6 +16,7 @@
 #
 ================================================================================================
 */
+
 #ifndef HELPER_GRAPH_ALGORITHM_HPP_INCLUDED
 #define HELPER_GRAPH_ALGORITHM_HPP_INCLUDED
 
