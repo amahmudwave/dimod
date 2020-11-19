@@ -81,7 +81,7 @@ public:
 
   void convertPreflowToFlow(bool handle_self_loops = false);
 
-  capacity_t computeMaximumFlow();
+  capacity_t computeMaximumFlow(bool handle_self_loops = false);
 
   void printStatistics();
 
@@ -566,6 +566,8 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
                 auto eit = reverseEdgeIterator(eit_reverse);
                 eit->residual += min_flow_magnitude;
 
+                // Undo the DFS coloring from the point of restart_vertex if
+                // found.
                 if ((eit_reverse->residual == 0) && !restart_vertex_found) {
                   restart_vertex_found = true;
                   restart_vertex = cycle_traversing_vertex;
@@ -573,6 +575,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
                 } else if (restart_vertex_found) {
                   dfs_color[eit_reverse->to_vertex] = DFS_COLOR::WHITE;
                 }
+
                 cycle_traversing_vertex = eit_reverse->to_vertex;
               }
 
@@ -585,8 +588,8 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
           }   // if ((..->getCapacity() == 0) && (..->residual > 0))
         }     // for (; _pending_out_edges[parent_vertex]...
 
-        // The current parent has finished all its edges, we can put it in its
-        // proper place in the topological order, and then backtrack.
+        // The parent has finished checking all it out edges, we can put it in
+        // its proper place in the topological order, and then backtrack.
         if (_pending_out_edges[parent_vertex].first ==
             _pending_out_edges[parent_vertex].second) {
           dfs_color[parent_vertex] = DFS_COLOR::BLACK;
@@ -601,18 +604,18 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
           }
 
           // If it is a root, then we break the while loop and the for loop
-          // above will automatically select the next vertex therwise we have to
-          // do it here. It is similar to the situation that in a DFS a wrapper
-          // function calls the first instance of DFS and before the call there
-          // is no stackframe for DFS function. In the case it is not the root
-          // we need to simulate the popping of the stack, this we do by setting
-          // the parent_vertex to be the parent of the parent_vertex, and
-          // incrementing the edge iterator, and the for loop will start again
-          // for the parent. Note: in general the parent_vertex is changing
+          // above will automatically select the next vertex. It is similar to
+          // the situation that in a DFS a wrapper function calls the first
+          // instance of DFS on different roots, and before the call there is no
+          // stackframe for DFS function. In the case it is not the root we need
+          // to simulate the popping of the stack, this we do by setting the
+          // parent_vertex to be the parent of the parent_vertex, we should also
+          // increment the edge iterator of the parent since in DFS we increment
+          // the iterator when the call to child DFS returns. The for loop will
+          // start again for the parent. Note: the parent_vertex is changing
           // within the loop so the edge iterator for the original parent_vertex
           // does not get incremented until and unless edges which cannot be
-          // traversed are encountered, we increment it when all children have
-          // been traversed like here.
+          // traversed are encountered.
           if (parent_vertex != root_vertex) {
             parent_vertex = parent[parent_vertex];
             _pending_out_edges[parent_vertex].first++;
@@ -624,8 +627,9 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
     }   // if(dfs_color[parent_vertex] == DFS_COLOR::WHITE...
   }     // for(int parent_vertex = 0; ...
 
-  // Remember topology_next[vertex] == -1 means there is nothing after the
-  // vertex in topological ordering.
+  // We push the excess flow back to the source according to the topological
+  // order we found by our search above. topology_next[vertex] == -1 means there
+  // is no successor of vertex in topological ordering.
   if (topology_initialized) {
     for (int vertex = topology_start_vertex; vertex >= 0;
          vertex = topology_next[vertex]) {
@@ -637,7 +641,8 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
           int to_vertex = eit->to_vertex;
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
           eit->residual -= flow;
-          _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
+          auto eit_reverse = reverseEdgeIterator(eit);
+          eit_reverse->residual += flow;
           _vertices[vertex].excess -= flow;
           _vertices[to_vertex].excess += flow;
         }
@@ -649,9 +654,9 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
 
 template <class EdgeType>
 typename EdgeType::capacity_type
-PushRelabelSolver<EdgeType>::computeMaximumFlow() {
+PushRelabelSolver<EdgeType>::computeMaximumFlow(bool handle_self_loops) {
   capacity_t maximum_flow = computeMaximumPreflow();
-  convertPreflowToFlow();
+  convertPreflowToFlow(handle_self_loops);
   return maximum_flow;
 }
 
