@@ -122,7 +122,7 @@ private:
   }
 
   inline edge_iterator reverseEdgeIterator(const edge_iterator &eit) const {
-    _adjacency_list[eit->to_vertex].begin() + eit->reverse_edge_index;
+    return _adjacency_list[eit->to_vertex].begin() + eit->reverse_edge_index;
   }
 
   void printLevels();
