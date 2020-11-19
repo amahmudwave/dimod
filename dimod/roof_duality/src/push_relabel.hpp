@@ -116,8 +116,12 @@ private:
   // Get the iterator pair of edges which need to be processed for a vertex next
   // time it is encountered, we may want to skip the edges which have been
   // saturated already before relabeling of the vertex happened.
-  std::pair<edge_iterator, edge_iterator> outEdges(int vertex) {
+  inline std::pair<edge_iterator, edge_iterator> outEdges(int vertex) {
     return {_adjacency_list[vertex].begin(), _adjacency_list[vertex].end()};
+  }
+
+  inline edge_terator reverseEdgeIterator(edge_iterator eit) {
+    _adjacency_list[eit->to_vertex].begin() + eit->reverse_edge_index;
   }
 
   void printLevels();
@@ -163,13 +167,12 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
   _pending_out_edges.resize(_num_vertices);
 
   _num_edges = 0;
-  for (int v = 0; v < _num_vertices; v++) {
-    _pending_out_edges[v] = {_adjacency_list[v].begin(),
-                             _adjacency_list[v].end()};
-    _vertices[v].vertex_number = v;
-    _vertices[v].height = 1;
-    _vertices[v].excess = 0;
-    _num_edges += _adjacency_list[v].size();
+  for (int vertex = 0; vertex < _num_vertices; vertex++) {
+    _pending_out_edges[vertex] = outEdges(vertex);
+    _vertices[vertex].vertex_number = vertex;
+    _vertices[vertex].height = 1;
+    _vertices[vertex].excess = 0;
+    _num_edges += _adjacency_list[vertex].size();
   }
   _vertices[_source].height = _num_vertices;
   _vertices[_sink].height = 0;
@@ -180,8 +183,9 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
   edge_iterator eit, eit_end;
   for (std::tie(eit, eit_end) = outEdges(_source); eit != eit_end; eit++) {
     capacity_t flow = eit->residual;
-    _adjacency_list[eit->to_vertex][eit->reverse_edge_index].residual += flow;
     eit->residual = 0;
+    auto eit_reverse = reverseEdgeIterator(eit);
+    eit_reverse->residual += flow;
     _vertices[eit->to_vertex].excess += flow;
     DEBUG_INCREMENT(_num_pushes);
   }
@@ -305,11 +309,16 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
             _levels[pushable_height].active_vertices.push_front(
                 &_vertices[to_vertex]);
           }
-          // Push flow inlined here: push(eit);
+
+          // Push flow - inlined.
+          // DO NOT use utility functions like reverseEdgeIterator here
+          // as the compiler may decide not to inline them and it will
+          // significantly impact performance.
           DEBUG_INCREMENT(_num_pushes);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
           eit->residual -= flow;
-          _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
+          auto eit_reverse = reverseEdgeIterator(eit);
+          eit_reverse->residual += flow;
           _vertices[vertex].excess -= flow;
           _vertices[to_vertex].excess += flow;
           if (_vertices[vertex].excess == 0) {
@@ -403,31 +412,34 @@ PushRelabelSolver<EdgeType>::computeMaximumPreflow() {
   return _vertices[_sink].excess;
 }
 
-// This is the algorithm used in boost library. An iterative depth first search
-// (DFS) is applied to do a topological sort of the vertices with excess flow,
-// so that flow can be pushed away from them in order and preflow be converted
-// to flow. A cycle in the directed graph would prevent a proper topological
-// sort thus in the same search if any flow cycle is detected, the cycle is
-// cutoff by reducing the flow by the minimum amount of flow in the cycle, this
+// This is the algorithm used in the boost graph library. An iterative depth
+// first search (DFS) is applied to do a topological sort of the vertices with
+// excess flow so that flow can be pushed away from them in order and preflow be
+// converted to flow. Since we want to do the topological sort to have the
+// vertices having excess at the root positions and vertices producing flow to
+// them to be their children, we do the depth first search along reverse edges.
+// A cycle in the directed graph would prevent a proper topological sort thus in
+// the same search if any flow cycle is detected, the cycle is cutoff by
+// reducing the flow by the minimum "magnitude" of flow in the cycle, this
 // causes the edges with flow equal to the minimum flow to get saturated. The
 // depth first search then backs off or in other words, undoes what was done
-// from the point of the saturated edge, so that it can go on as before from
-// that point. Note there will be no explicit stack used for this depth first
-// search, but instead the iterators pointing to the edges to be traversed for
-// each vertex will be updated and an array containing parents of vertices will
-// help simulate the stack. When we want to pop the stack we can basically look
-// at the parent of the current vertex being processed and when we want to push
-// a vertex, we can make it a parent for the next vertex while incrementing its
-// edge iterator. For solving max-flows on graphs induced from posiforms, we do
-// not need to consider self loops since we do induce terms terms like X_i*X_i'
+// since encountering the vertex from which the saturated edge was incident
+// "from", so that it can go on as before from that point. Note there will be no
+// explicit stack used for this depth first search, but instead the iterators
+// pointing to the edges to be traversed for each vertex will be updated and an
+// array containing parents of vertices will help simulate the stack. When we
+// want to pop the stack we can basically look at the parent of the current
+// vertex being processed and when we want to push a vertex, we can make it a
+// parent for the next vertex and restart the loop with the next vertex as the
+// parent. For solving max-flows on graphs induced from posiforms, we do not
+// need to consider self loops since we do induce terms terms like X_i*X_i'
 // which might create a self loop for X_i or X_i'.
 template <class EdgeType>
 void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
 
-  // Certain graphs, like the implication networks formed from posiforms are
-  // guaranteed not to contain self loops thus processing them is optional. If
-  // there are self loops then we can just eliminate the flow, as it does not
-  // contribute to the excess of the vertex.
+  // If there are self loops then we can just eliminate the flow, as it does not
+  // contribute to the excess of the vertex, what goes out through an edge comes
+  // back through its reverse counterpart.
   if (handle_self_loops) {
     for (int from_vertex = 0; from_vertex < _num_vertices; from_vertex++) {
       edge_iterator eit, eit_end;
@@ -465,60 +477,68 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
     if ((dfs_color[parent_vertex] == DFS_COLOR::WHITE) &&
         (_vertices[parent_vertex].excess > 0) && (parent_vertex != _source) &&
         (parent_vertex != _sink)) {
-      int root_vertex = parent_vertex; // The root of a dfs tree.
+
+      // The root of a DFS tree.
+      int root_vertex = parent_vertex;
       dfs_color[root_vertex] = DFS_COLOR::GREY;
+
       while (true) {
+
         // We need to increment the actual iterator in the array. Think
-        // of recursive dfs, the counter of a for loop belonging to a particular
+        // of recursive DFS, the counter of a for loop belonging to a particular
         // stack frame is saved in the stack frame while the function calls
         // itself recursively so when it comes back it finds the counter with
         // the proper value.
         for (; _pending_out_edges[parent_vertex].first !=
                _pending_out_edges[parent_vertex].second;
              _pending_out_edges[parent_vertex].first++) {
+
           // We are traversing reverse edges with capacity 0, i.e the children
           // are sending flow to the parent. So we denote the main iterator by
           // eit_reverse unlike other places in the file.
-          auto eit_reverse = _pending_out_edges[parent_vertex].first;
-
           // The edge brings flow to the parent_vertex, we want to topologically
           // sort such that the root receives flow from the source through its
           // children, so that we can push them back.
+          auto eit_reverse = _pending_out_edges[parent_vertex].first;
           if ((eit_reverse->getCapacity() == 0) &&
               (eit_reverse->residual > 0)) {
             int current_vertex = eit_reverse->to_vertex;
             if (dfs_color[current_vertex] == DFS_COLOR::WHITE) {
               dfs_color[current_vertex] = DFS_COLOR::GREY;
 
-              // Equivalent to calling dfs, i.e pushing into the stack. The
+              // Equivalent to calling DFS, i.e pushing into the stack. The
               // while loop above will start the for loop all over again, but
               // this time the parent_vertex will be the current_vertex, and we
               // will be able to trace back as the parent-child relationship is
-              // saved in the parent array.
+              // saved in the parent array. Note breaking the loop does not
+              // allow the iterator of edges to be incremented for the parent,
+              // just like in a recursive DFS, the for loop does not get
+              // incremented till the recursive call to DFS finishes.
               parent[current_vertex] = parent_vertex;
               parent_vertex = current_vertex;
               break;
             }
 
-            // We have detected a cycle, now we need to eliminate the cycle and
-            // then back the DFS up to the vertex from which emanates the first
-            // edge that is saturated/flow nullified in order to remove the
+            // We have detected a cycle, now we need to break the cycle and then
+            // back the DFS up to the vertex from which emanates the first edge
+            // that will be saturated/flow nullified in order to remove the
             // cycle.
             else if (dfs_color[current_vertex] == DFS_COLOR::GREY) {
+
               // We chose to enter the condition only for reverse/residual edges
-              // and also made sure we incremented the array of iterators i.e
-              // the _pending_out_edges, thus we can cycle over the cycle found,
-              // as the path formed by the iterators saved in _pending_out_edges
-              // outlines the cycle we just discovered. The value of residual in
-              // a reverse edge is equal to the flow in the orignal edge, we are
-              // currently traversing reverse edges, so take the minimum of
-              // residuals.
-              capacity_t min_flow = eit_reverse->residual;
+              // and the iterators in _pending_out_edges are not incremented
+              // while pushing, thus we can cycle over the cycle found, as the
+              // path formed by the iterators in _pending_out_edges outlines the
+              // cycle we just discovered. The value of residual in a reverse
+              // edge is equal to the flow in the orignal edge/absolute value of
+              // flow in the reverse edge. We are currently traversing reverse
+              // edges, so take the minimum of residuals.
+              capacity_t min_flow_magnitude = eit_reverse->residual;
               int cycle_traversing_vertex = current_vertex;
               while (cycle_traversing_vertex != parent_vertex) {
-                min_flow = std::min(
+                min_flow_magnitude = std::min(
                     _pending_out_edges[cycle_traversing_vertex].first->residual,
-                    min_flow);
+                    min_flow_magnitude);
                 cycle_traversing_vertex =
                     _pending_out_edges[cycle_traversing_vertex]
                         .first->to_vertex;
@@ -528,30 +548,28 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
               // that is saturate the reverse edge or say zero out the residual.
               // Process the back edge first.
               eit_reverse = _pending_out_edges[parent_vertex].first;
-              eit_reverse->residual -= min_flow;
-              auto eit = _adjacency_list[eit_reverse->to_vertex].begin() +
-                         eit_reverse->reverse_edge_index;
-              eit->residual += min_flow;
+              eit_reverse->residual -= min_flow_magnitude;
+              auto eit = reverseEdgeIterator(eit_reverse);
+              eit->residual += min_flow_magnitude;
 
               // Reduce the flow on the other edges of the cycle, but this time
-              // starting from the current_vertex. The vertex from which the
-              // first saturated vertex emanates is the one we should restart
-              // our DFS from.
+              // starting from the current_vertex.
+              // The vertex from which the first saturated vertex emanates is
+              // the one we should restart our DFS from.
               cycle_traversing_vertex = current_vertex;
               int restart_vertex = parent_vertex;
-              bool restart_found = false;
+              bool restart_vertex_found = false;
               while (cycle_traversing_vertex != parent_vertex) {
                 eit_reverse = _pending_out_edges[cycle_traversing_vertex].first;
-                eit_reverse->residual -= min_flow;
-                auto eit = _adjacency_list[eit_reverse->to_vertex].begin() +
-                           eit_reverse->reverse_edge_index;
-                eit->residual += min_flow;
+                eit_reverse->residual -= min_flow_magnitude;
+                auto eit = reverseEdgeIterator(eit_reverse);
+                eit->residual += min_flow_magnitude;
 
-                if ((eit_reverse->residual == 0) && !restart_found) {
-                  restart_found = true;
+                if ((eit_reverse->residual == 0) && !restart_vertex_found) {
+                  restart_vertex_found = true;
                   restart_vertex = cycle_traversing_vertex;
                   dfs_color[eit_reverse->to_vertex] = DFS_COLOR::WHITE;
-                } else if (restart_found) {
+                } else if (restart_vertex_found) {
                   dfs_color[eit_reverse->to_vertex] = DFS_COLOR::WHITE;
                 }
                 cycle_traversing_vertex = eit_reverse->to_vertex;
@@ -583,9 +601,9 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
 
           // If it is a root, then we break the while loop and the for loop
           // above will automatically select the next vertex therwise we have to
-          // do it here. It is similar to the situation that in a dfs a wrapper
-          // function calls the first instance of dfs and before the call there
-          // is no stackframe for dfs function. In the case it is not the root
+          // do it here. It is similar to the situation that in a DFS a wrapper
+          // function calls the first instance of DFS and before the call there
+          // is no stackframe for DFS function. In the case it is not the root
           // we need to simulate the popping of the stack, this we do by setting
           // the parent_vertex to be the parent of the parent_vertex, and
           // incrementing the edge iterator, and the for loop will start again
