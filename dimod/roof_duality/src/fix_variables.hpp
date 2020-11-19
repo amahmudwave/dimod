@@ -1402,14 +1402,11 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
     
      curr_1 = clock();
      PushRelabelSolver<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-//     pushRelab.printLevels();
-     std::cout << "Done p[rinting levels" <<std::endl;
+//    pushRelab.printLevels();
      vector<int> bfsRes;
-//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, true, true); 
-//     breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
  
-     //long long int preflow = pushRelab.maximum_preflow();
      long long int preflow = pushRelab.computeMaximumPreflow();
+      pushRelab.convertPreflowToFlow();
      curr_2 = clock();
      printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
@@ -1420,9 +1417,8 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_2 = clock();
      printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
   
-  //   breadthFirstSearch(implNet.getAdjacencyList(), implNet.getSource(), bfsRes, false, true); 
-//     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
- //    std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
+     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
+    std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
 
      printf(" Calling processed map based function \n"); 
      return fixQuboVariablesMap(QMap, numVars, method); 

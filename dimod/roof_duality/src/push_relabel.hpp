@@ -526,7 +526,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
         // the proper value.
         for (; _pending_out_edges[parent_vertex].first !=
                _pending_out_edges[parent_vertex].second;
-             _pending_out_edges[parent_vertex]++) {
+             _pending_out_edges[parent_vertex].first++) {
           // We are traversing reverse edges with capacity 0, i.e the children
           // are sending flow to the parent. So we denote the main iterator by
           // eit_reverse unlike other places in the file.
@@ -539,7 +539,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
               (eit_reverse->residual > 0)) {
             int current_vertex = eit_reverse->to_vertex;
             if (dfs_color[current_vertex] == DFS_COLOR::WHITE) {
-              dfs_color[current_vertex] = DFS_COLOR::GRAY;
+              dfs_color[current_vertex] = DFS_COLOR::GREY;
 
               // Equivalent to calling dfs, i.e pushing into the stack. The
               // while loop above will start the for loop all over again, but
@@ -555,7 +555,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
             // then back the DFS up to the vertex from which emanates the first
             // edge that is saturated/flow nullified in order to remove the
             // cycle.
-            else if (dfs_color[current_vertex] == DFS_COLOR::GRAY) {
+            else if (dfs_color[current_vertex] == DFS_COLOR::GREY) {
               // We chose to enter the condition only for reverse/residual edges
               // and also made sure we incremented the array of iterators i.e
               // the _pending_out_edges, thus we can cycle over the cycle found,
@@ -578,7 +578,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
               // Reduce the flow in the edges with minimum flow in the cycle,
               // that is saturate the reverse edge or say zero out the residual.
               // Process the back edge first.
-              eit_reverse = _pending_out_edges[parent_vertex];
+              eit_reverse = _pending_out_edges[parent_vertex].first;
               eit_reverse->residual -= min_flow;
               auto eit = _adjacency_list[eit_reverse->to_vertex].begin() +
                          eit_reverse->reverse_edge_index;
@@ -592,7 +592,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
               int restart_vertex = parent_vertex;
               bool restart_found = false;
               while (cycle_traversing_vertex != parent_vertex) {
-                eit_reverse = _pending_out_edges[cycle_traversing_vertex];
+                eit_reverse = _pending_out_edges[cycle_traversing_vertex].first;
                 eit_reverse->residual -= min_flow;
                 auto eit = _adjacency_list[eit_reverse->to_vertex].begin() +
                            eit_reverse->reverse_edge_index;
@@ -610,10 +610,10 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
 
               if (restart_vertex != parent_vertex) {
                 parent_vertex = restart_vertex;
-                _pending_out_edges[parent_vertex]++;
+                _pending_out_edges[parent_vertex].first++;
                 break;
               }
-            } // else if (dfs_color[current_vertex] == DFS_COLOR::GRAY)
+            } // else if (dfs_color[current_vertex] == DFS_COLOR::GREY)
           }   // if ((..->getCapacity() == 0) && (..->residual > 0))
         }     // for (; _pending_out_edges[parent_vertex]...
 
@@ -647,7 +647,7 @@ void PushRelabelSolver<EdgeType>::convertPreflowToFlow(bool handle_self_loops) {
           // been traversed like here.
           if (parent_vertex != root_vertex) {
             parent_vertex = parent[parent_vertex];
-            _pending_out_edges[parent_vertex]++;
+            _pending_out_edges[parent_vertex].first++;
           } else {
             break;
           }
