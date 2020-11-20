@@ -184,12 +184,12 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
   // Saturate the edges coming out of the source.`
   edge_iterator eit, eit_end;
   for (std::tie(eit, eit_end) = outEdges(_source); eit != eit_end; eit++) {
+    DEBUG_INCREMENT(_num_pushes);
     capacity_t flow = eit->residual;
     eit->residual = 0;
     auto eit_reverse = reverseEdgeIterator(eit);
     eit_reverse->residual += flow;
     _vertices[eit->to_vertex].excess += flow;
-    DEBUG_INCREMENT(_num_pushes);
   }
 
   _max_height = 1;
