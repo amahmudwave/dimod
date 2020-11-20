@@ -319,8 +319,7 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
           DEBUG_INCREMENT(_num_pushes);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
           eit->residual -= flow;
-          auto eit_reverse = reverseEdgeIterator(eit);
-          eit_reverse->residual += flow;
+          _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
           _vertices[vertex].excess -= flow;
           _vertices[to_vertex].excess += flow;
           if (_vertices[vertex].excess == 0) {
