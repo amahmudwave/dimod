@@ -1395,7 +1395,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_1 = clock();
 
      ImplicationNetwork<long long int> implNet(pi);
-//     implNet.print();
+     implNet.print();
      curr_2 = clock();
      printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
@@ -1413,15 +1413,25 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      std::cout <<"Flow from written code : " << preflow <<std::endl;
      std::cout <<"Flow after validation " << res1.first <<  " is valid ? :" << res1.second << std::endl; 
     
-//     pushRelab.printStatistics();
-//     curr_1 = clock();
-//     implNet.makeResidualSymmetric();
-//     curr_2 = clock();
-//     printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-//  
-//     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-//     std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
+     curr_1 = clock();
+     implNet.makeResidualSymmetric();
+     curr_2 = clock();
+     printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+  
+     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
+     std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
 
+     auto residual_adj = implNet.extractResidualNetwork();
+
+     for(int i = 0; i < residual_adj.size(); i++) {
+	std::cout << " Vertex " << i << " edges  : " << std::endl;
+       for(int j = 0; j < residual_adj[i].size(); j++) {
+           std::cout << residual_adj[i][j] << " " ; 
+       }
+      std::cout << endl;
+     }
+
+     implNet.print();
     // printf(" Calling processed map based function \n"); 
     // return fixQuboVariablesMap(QMap, numVars, method); 
 }
