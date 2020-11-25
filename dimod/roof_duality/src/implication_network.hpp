@@ -23,6 +23,15 @@
 #include "helper_graph_algorithms.hpp"
 #include "push_relabel.hpp"
 
+typedef struct strongComponentInfo {
+  int source_component;
+  int sink_component;
+  // Component to its complement component.
+  std::vector<int> complement_map;
+  std::vector<int> vertex_to_component_map;
+  std::vector<std::vector<int>> components;
+} strongComponentInfo;
+
 // Edge type for implication network. An implication network is formed from a
 // posiform. If there is a term Coeff * X_i * X_j, we will have two edges in the
 // network one X_i to X_j' and another X_j to X_i', the directions will depend
@@ -114,8 +123,9 @@ public:
 
   void makeResidualSymmetric();
 
-  std::vector<std::vector<int>> &
-  extractResidualNetwork(bool free_original_adjacency_list = true);
+  void extractResidualNetwork(
+    std::vector<std::vector<int>> &adjacency_list_residual,
+    bool free_original_adjacency_list = false);
 
   void print();
 
@@ -157,6 +167,10 @@ private:
   void fillLastOutEdgeReferences(int from_vertex, int to_vertex);
   void createImplicationNetworkEdges(int from_vertex, int to_vertex,
                                      capacity_t capacity);
+
+ void postProcessStronglyConnectedComponents(
+    int num_components, strongComponentInfo &component_info,
+    std::vector<std::vector<int>> &adjacency_list_components); 
 
   void fixTriviallyStrongVariables(
       std::vector<std::pair<int, int>> &fixed_variables);
@@ -385,7 +399,7 @@ void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
   push_relabel_solver.computeMaximumFlow(false);
 
   vector<int> bfs_depth_values;
-  breadthFirstSearch(_adjacency_list, _source, bfs_depth_values, false, false);
+  breadthFirstSearch(_adjacency_list, _source, bfs_depth_values, false, true);
 
   fixed_variables.reserve(_num_variables);
   std::vector<bool> variable_fixed(_num_variables, false);
@@ -401,15 +415,6 @@ void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
   }
 }
 
-struct strongComponentInfo {
-  int source_component;
-  int sink_component;
-  // Component to its complement component.
-  std::vector<int> complement_map;
-  std::vector<int>> vertex_to_component_map;
-  std::vector<std::vector<int>> components;
-};
-
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::postProcessStronglyConnectedComponents(
     int num_components, strongComponentInfo &component_info,
@@ -418,8 +423,8 @@ void ImplicationNetwork<capacity_t>::postProcessStronglyConnectedComponents(
   std::vector<int> component_sizes(num_components, 0);
 
   auto &vertex_to_component_map = component_info.vertex_to_component_map;
-  source_component = vertex_to_component_map[_source];
-  sink_component = vertex_to_component_map[_sink];
+  component_info.source_component = vertex_to_component_map[_source];
+  component_info.sink_component = vertex_to_component_map[_sink];
 
   for (int vertex = 0; vertex < _num_vertices; vertex++) {
     component_sizes[vertex_to_component_map[vertex]]++;
@@ -480,11 +485,11 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   extractResidualNetwork(adjacency_list_residual, true);
 
   strongComponentInfo component_info;
-  int num_strongly_connected_components = stronglyConnectedComponents(
+  int num_components = stronglyConnectedComponents(
       adjacency_list_residual, component_info.vertex_to_component_map);
 
   std::vector<std::vector<int>> adjacency_list_components;
-  postprocessStronglyConnectedComponents(num_components, component_info,
+  postProcessStronglyConnectedComponents(num_components, component_info,
                                          adjacency_list_components);
 }
 

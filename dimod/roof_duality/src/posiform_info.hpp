@@ -91,6 +91,11 @@ public:
     return _bqm_to_posiform_variable_map[i];
   }
 
+  // Convert posiform variable to bqm variable.
+  inline int getUnMappedVariable(int i) {
+    return _posiform_to_bqm_variable_map[i];
+  }
+
   inline coefficient_type convertToPosiformCoefficient(bias_type bias) {
     return static_cast<coefficient_type>(bias * _bias_conversion_ratio);
   }

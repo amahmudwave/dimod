@@ -1155,6 +1155,11 @@ std::vector<std::pair<int, int> > applyImplication(const compressed_matrix::Comp
 
 	std::sort(fixed.begin(), fixed.end(), compClass());
 
+        std::cout << "Printing out fixed variables using old method 2 " << std::endl; 
+        for(int i = 0; i < fixed.size(); i++) {
+          std::cout << fixed[i].first << " " << fixed[i].second << std::endl;
+        }
+
 	//curr_2 = clock();
 	//mexPrintf("inside applyImplication int version: Time elapsed_fix_vars_and_sorting: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
@@ -1395,11 +1400,25 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      curr_1 = clock();
 
      ImplicationNetwork<long long int> implNet(pi);
-     implNet.print();
+//     implNet.print();
      curr_2 = clock();
      printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
+     std::vector<std::pair<int, int>> fixed_variables;
+     implNet.fixVariables(fixed_variables, true);
+
+     for(int i = 0; i < fixed_variables.size(); i++) {
+        fixed_variables[i].first = pi.getUnMappedVariable(fixed_variables[i].first);
+     }
+
+     std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
     
+     std::cout << "Printing out fixed variables using new method " << std::endl; 
+     for(int i = 0; i < fixed_variables.size(); i++) {
+          std::cout << fixed_variables[i].first << " " << fixed_variables[i].second << std::endl;
+     }
+
+/*    
      curr_1 = clock();
      PushRelabelSolver<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
 //    pushRelab.printLevels();
@@ -1434,6 +1453,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      implNet.print();
     // printf(" Calling processed map based function \n"); 
     // return fixQuboVariablesMap(QMap, numVars, method); 
+ */
 }
 
 } // namespace fix_variables_
