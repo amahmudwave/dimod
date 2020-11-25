@@ -1452,8 +1452,9 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      implNet.print();
     // printf(" Calling processed map based function \n"); 
-    // return fixQuboVariablesMap(QMap, numVars, method); 
- */
+*/
+    return fixQuboVariablesMap(QMap, numVars, 2); 
+
 }
 
 } // namespace fix_variables_
