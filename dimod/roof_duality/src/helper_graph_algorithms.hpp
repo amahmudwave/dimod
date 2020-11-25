@@ -238,6 +238,7 @@ int stronglyConnectedComponents(std::vector<std::vector<int>> &adjacency_list,
   for (int current_vertex = 0; current_vertex < num_vertices;
        current_vertex++) {
     if (vertex_visit_id[current_vertex] == UNVISITED) {
+
       // The root of a DFS tree.
       int root_vertex = current_vertex;
       vertex_visit_id[current_vertex] = visit_id;
@@ -256,6 +257,8 @@ int stronglyConnectedComponents(std::vector<std::vector<int>> &adjacency_list,
             visit_id++;
             component_stack.push(child_vertex);
             in_stack[child_vertex] = true;
+
+            // Recursive DFS call.
             parent[child_vertex] = current_vertex;
             current_vertex = child_vertex;
             break;
@@ -264,6 +267,8 @@ int stronglyConnectedComponents(std::vector<std::vector<int>> &adjacency_list,
                                                    low_link_id[child_vertex]);
           }
         }
+
+        // Finished exploring current vertex, edges.
         if (pending_out_edges[current_vertex].first ==
             pending_out_edges[current_vertex].second) {
           if (low_link_id[current_vertex] == vertex_visit_id[current_vertex]) {
@@ -278,6 +283,10 @@ int stronglyConnectedComponents(std::vector<std::vector<int>> &adjacency_list,
           if (current_vertex != root_vertex) {
             int completed_vertex = current_vertex;
             current_vertex = parent[current_vertex];
+
+            // This is the DFS callback, here the recursive function has
+            // returned and we can perform the comparison with the low link id
+            // of the child node.
             low_link_id[current_vertex] = std::min(
                 low_link_id[current_vertex], low_link_id[completed_vertex]);
             pending_out_edges[current_vertex].first++;
