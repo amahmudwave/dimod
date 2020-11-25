@@ -56,6 +56,32 @@ public:
   int size() noexcept { return _back - _front; }
 };
 
+// Stack with std::vector as internal container.
+template <typename T> class vector_based_stack {
+  std::vector<T> _data;
+  std::size_t _size{0};
+
+public:
+  vector_based_stack() = default;
+
+  explicit vector_based_stack(std::size_t size) {
+    _size = 0;
+    _data.resize(size);
+  }
+
+  void push(T val) noexcept { _data[_size++] = val; }
+
+  T pop() noexcept { return _data[--_size]; }
+
+  T top() noexcept { return _data[_size - 1]; }
+
+  bool empty() const noexcept { return _size == 0; }
+
+  void reset() noexcept { _size = 0; }
+
+  int size() noexcept { return _size; }
+};
+
 // Linked list that uses preallocated nodes.
 template <typename node> class preallocated_linked_list {
   node _head = node{}, _tail = node{};
