@@ -123,9 +123,9 @@ public:
 
   void makeResidualSymmetric();
 
-  void extractResidualNetwork(
-    std::vector<std::vector<int>> &adjacency_list_residual,
-    bool free_original_adjacency_list = false);
+  void extractResidualNetworkWithoutSourceInSinkOut(
+      std::vector<std::vector<int>> &adjacency_list_residual,
+      bool free_original_adjacency_list = false);
 
   void print();
 
@@ -168,9 +168,9 @@ private:
   void createImplicationNetworkEdges(int from_vertex, int to_vertex,
                                      capacity_t capacity);
 
- void postProcessStronglyConnectedComponents(
-    int num_components, strongComponentInfo &component_info,
-    std::vector<std::vector<int>> &adjacency_list_components); 
+  void postProcessStronglyConnectedComponents(
+      int num_components, strongComponentInfo &component_info,
+      std::vector<std::vector<int>> &adjacency_list_components);
 
   void fixTriviallyStrongVariables(
       std::vector<std::pair<int, int>> &fixed_variables);
@@ -296,18 +296,20 @@ void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
 }
 
 // We extract the adjacency list that contains only the edges in the
-// implication network with positive residual capacity, we will run later
-// algorithms on the extracted adjacency list. For a single thread this may or
-// may not be slower when compared to working with the original network due to
-// the extra step but if the graph is large and if we take advantage of
-// parallelism we are supposed to get better performance ase there will be less
-// page faults and more vertices/edges will fit into the cache due to smaller
-// memory footprint of the extracted graph and also due to the fact that we can
-// reduce the cost of extraction using multiple threads.
+// implication network with positive residual capacity, excluding the one going
+// into the source and coming out of the sink. We will run later algorithms on
+// the extracted adjacency list. For a single thread this may or may not be
+// slower when compared to working with the original network due to the extra
+// step but if the graph is large and if we take advantage of parallelism we are
+// supposed to get better performance ase there will be less page faults and
+// more vertices/edges will fit into the cache due to smaller memory footprint
+// of the extracted graph and also due to the fact that we can reduce the cost
+// of extraction using multiple threads.
 template <class capacity_t>
-void ImplicationNetwork<capacity_t>::extractResidualNetwork(
-    std::vector<std::vector<int>> &adjacency_list_residual,
-    bool free_original_adjacency_list) {
+void ImplicationNetwork<capacity_t>::
+    extractResidualNetworkWithoutSourceInSinkOut(
+        std::vector<std::vector<int>> &adjacency_list_residual,
+        bool free_original_adjacency_list) {
   checkAdjacencyListValidity();
   adjacency_list_residual.resize(_num_vertices);
 #pragma omp parallel
@@ -315,20 +317,24 @@ void ImplicationNetwork<capacity_t>::extractResidualNetwork(
     std::vector<int> temp_buffer(_num_vertices);
 #pragma omp for
     for (int vertex = 0; vertex < _num_vertices; vertex++) {
-      int num_residual_out_edges = 0;
-      auto eit = _adjacency_list[vertex].begin();
-      auto eit_end = _adjacency_list[vertex].end();
-      for (; eit != eit_end; eit++) {
-        if (eit->residual > 0) {
-          temp_buffer[num_residual_out_edges++] = eit->to_vertex;
+      if (vertex != _sink) {
+        int num_residual_out_edges = 0;
+        auto eit = _adjacency_list[vertex].begin();
+        auto eit_end = _adjacency_list[vertex].end();
+        for (; eit != eit_end; eit++) {
+          if (eit->residual > 0) {
+            if (eit->to_vertex != _source) {
+              temp_buffer[num_residual_out_edges++] = eit->to_vertex;
+            }
+          }
         }
+        adjacency_list_residual[vertex].assign(
+            temp_buffer.begin(), temp_buffer.begin() + num_residual_out_edges);
       }
       if (free_original_adjacency_list) {
         std::vector<ImplicationEdge<capacity_t>>().swap(
             _adjacency_list[vertex]);
       }
-      adjacency_list_residual[vertex].assign(
-          temp_buffer.begin(), temp_buffer.begin() + num_residual_out_edges);
     }
   }
 
@@ -469,21 +475,25 @@ void ImplicationNetwork<capacity_t>::postProcessStronglyConnectedComponents(
       exit(1);
     }
   }
-  
-  std::cout <<"SCC of residual :"<<std::endl;
-  std::cout << "Vertices : " << _num_vertices << " Source " << _source << " Sink " << _sink << std::endl; 
+
+  std::cout << "SCC of residual :" << std::endl;
+  std::cout << "Vertices : " << _num_vertices << " Source " << _source
+            << " Sink " << _sink << std::endl;
   std::cout << "Vertex - Component" << std::endl;
-  for(int i = 0; i < _num_vertices; i++) {
-    std::cout <<i << "  " << vertex_to_component_map[i] << std::endl ; 
-  } 
-  std::cout <<std::endl;
-  std::cout <<" Source component " << component_info.source_component << "  Sink component " << component_info.sink_component << std::endl;
-  for(int i =0; i < num_components; i++) {
-    std::cout <<"component " << i << " complement " << complement_map[i] <<std::endl;
-    for(int c = 0; c < components[i].size(); c++) {
-      std::cout <<" " << components[i][c] << " "; 
+  for (int i = 0; i < _num_vertices; i++) {
+    std::cout << i << "  " << vertex_to_component_map[i] << std::endl;
+  }
+  std::cout << std::endl;
+  std::cout << " Source component " << component_info.source_component
+            << "  Sink component " << component_info.sink_component
+            << std::endl;
+  for (int i = 0; i < num_components; i++) {
+    std::cout << "component " << i << " complement " << complement_map[i]
+              << std::endl;
+    for (int c = 0; c < components[i].size(); c++) {
+      std::cout << " " << components[i][c] << " ";
     }
-    std::cout<<std::endl;
+    std::cout << std::endl;
   }
 }
 
@@ -498,7 +508,7 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   makeResidualSymmetric();
 
   std::vector<std::vector<int>> adjacency_list_residual;
-  extractResidualNetwork(adjacency_list_residual, true);
+  extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
 
   strongComponentInfo component_info;
   int num_components = stronglyConnectedComponents(

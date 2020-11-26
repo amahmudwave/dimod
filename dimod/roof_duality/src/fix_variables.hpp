@@ -627,6 +627,12 @@ SCRet stronglyConnectedComponents(const compressed_matrix::CompressedMatrix<long
 	//int num = strong_components(G, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
 	int num = strong_components(G, boost::make_iterator_property_map(component.begin(), boost::get(boost::vertex_index, G)),
 			                                root_map(boost::make_iterator_property_map(root.begin(), boost::get(boost::vertex_index, G))).color_map(boost::make_iterator_property_map(color.begin(), boost::get(boost::vertex_index, G))).discover_time_map(boost::make_iterator_property_map(discover_time.begin(), boost::get(boost::vertex_index, G))));
+ 
+     std::cout <<"Boost strong components: " << std::endl;
+     std::cout << "Vertex - Component" << std::endl;
+     for(int i = 0; i < numVertices; i++) {
+        std::cout <<i << "  " << component[i] << std::endl ; 
+     }
 
 	//curr_2 = clock();
 	//mexPrintf("Time elapsed_boost_strongly_connected_components_graph: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
