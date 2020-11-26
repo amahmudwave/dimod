@@ -1155,11 +1155,6 @@ std::vector<std::pair<int, int> > applyImplication(const compressed_matrix::Comp
 
 	std::sort(fixed.begin(), fixed.end(), compClass());
 
-        std::cout << "Printing out fixed variables using old method 2 " << std::endl; 
-        for(int i = 0; i < fixed.size(); i++) {
-          std::cout << fixed[i].first << " " << fixed[i].second << std::endl;
-        }
-
 	//curr_2 = clock();
 	//mexPrintf("inside applyImplication int version: Time elapsed_fix_vars_and_sorting: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
@@ -1405,7 +1400,8 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
      std::vector<std::pair<int, int>> fixed_variables;
-     implNet.fixVariables(fixed_variables, true);
+     implNet.fixVariables(fixed_variables, false);
+/*
 
      for(int i = 0; i < fixed_variables.size(); i++) {
         fixed_variables[i].first = pi.getUnMappedVariable(fixed_variables[i].first);
@@ -1413,48 +1409,16 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
     
-     std::cout << "Printing out fixed variables using new method " << std::endl; 
+     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, 2); 
+     std::cout << "Comparing old and new methods " << std::endl; 
+
      for(int i = 0; i < fixed_variables.size(); i++) {
-          std::cout << fixed_variables[i].first << " " << fixed_variables[i].second << std::endl;
+	  if((fixed_variables[i].first != (fixed_variables_old[i].first-1)) || (fixed_variables[i].second != fixed_variables_old[i].second)) 
+	  {
+             std::cout <<"Mismatch " << fixed_variables[i].first <<" " <<  (fixed_variables_old[i].first-1) << " " <<fixed_variables[i].second << " "  << fixed_variables_old[i].second << std::endl;
+	  }
      }
-
-/*    
-     curr_1 = clock();
-     PushRelabelSolver<ImplicationEdge<long long int>> pushRelab(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-//    pushRelab.printLevels();
-     vector<int> bfsRes;
- 
-     long long int preflow = pushRelab.computeMaximumFlow();
-     curr_2 = clock();
-     printf("Time elapsed_maximum_preflow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-
-     auto res1  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-     std::cout <<"Flow from written code : " << preflow <<std::endl;
-     std::cout <<"Flow after validation " << res1.first <<  " is valid ? :" << res1.second << std::endl; 
-    
-     curr_1 = clock();
-     implNet.makeResidualSymmetric();
-     curr_2 = clock();
-     printf("Time elapsed_make_symmetric: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-  
-     auto res  = isMaximumFlow(implNet.getAdjacencyList(), implNet.getSource(), implNet.getSink());
-     std::cout << "Symmetric flow " << res.first << " halved " << res.first/2 << " is valid ? :" << res.second << std::endl; 
-
-     auto residual_adj = implNet.extractResidualNetwork();
-
-     for(int i = 0; i < residual_adj.size(); i++) {
-	std::cout << " Vertex " << i << " edges  : " << std::endl;
-       for(int j = 0; j < residual_adj[i].size(); j++) {
-           std::cout << residual_adj[i][j] << " " ; 
-       }
-      std::cout << endl;
-     }
-
-     implNet.print();
-    // printf(" Calling processed map based function \n"); 
-*/
-    return fixQuboVariablesMap(QMap, numVars, 2); 
-
+ */
 }
 
 } // namespace fix_variables_

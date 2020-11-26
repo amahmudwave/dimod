@@ -469,6 +469,22 @@ void ImplicationNetwork<capacity_t>::postProcessStronglyConnectedComponents(
       exit(1);
     }
   }
+  
+  std::cout <<"SCC of residual :"<<std::endl;
+  std::cout << "Vertices : " << _num_vertices << " Source " << _source << " Sink " << _sink << std::endl; 
+  std::cout << "Vertex - Component" << std::endl;
+  for(int i = 0; i < _num_vertices; i++) {
+    std::cout <<i << "  " << vertex_to_component_map[i] << std::endl ; 
+  } 
+  std::cout <<std::endl;
+  std::cout <<" Source component " << component_info.source_component << "  Sink component " << component_info.sink_component << std::endl;
+  for(int i =0; i < num_components; i++) {
+    std::cout <<"component " << i << " complement " << complement_map[i] <<std::endl;
+    for(int c = 0; c < components[i].size(); c++) {
+      std::cout <<" " << components[i][c] << " "; 
+    }
+    std::cout<<std::endl;
+  }
 }
 
 template <class capacity_t>
