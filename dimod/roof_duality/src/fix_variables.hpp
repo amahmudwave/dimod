@@ -1410,7 +1410,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 /*
 
      for(int i = 0; i < fixed_variables.size(); i++) {
-        fixed_variables[i].first = pi.getUnMappedVariable(fixed_variables[i].first);
+        fixed_variables[i].first = pi.mapVariablePosiformToQubo(fixed_variables[i].first);
      }
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());

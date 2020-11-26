@@ -78,8 +78,8 @@ public:
   }
 
   // For iterating the quadratic biases, we need the
-  // convertToPosiformCoefficient and getMappedVariable functions, since the
-  // iterators belong to the bqm.
+  // convertToPosiformCoefficient and mapVariableQuboToPosiform functions, since
+  // the iterators belong to the bqm.
 
   inline std::pair<quadratic_iterator_type, quadratic_iterator_type>
   getQuadratic(int i) {
@@ -87,12 +87,12 @@ public:
   }
 
   // Convert bqm variable to posiform variable.
-  inline int getMappedVariable(int i) {
+  inline int mapVariableQuboToPosiform(int i) {
     return _bqm_to_posiform_variable_map[i];
   }
 
   // Convert posiform variable to bqm variable.
-  inline int getUnMappedVariable(int i) {
+  inline int mapVariablePosiformToQubo(int i) {
     return _posiform_to_bqm_variable_map[i];
   }
 
@@ -175,7 +175,7 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   // Consider the upper limit of max-flow in implication graph for calculating
   // conversion ratio.
   if (_max_absolute_value < _posiform_linear_sum_non_integral) {
-  //  _max_absolute_value = _posiform_linear_sum_non_integral;
+    _max_absolute_value = _posiform_linear_sum_non_integral;
   }
 
   assert(_max_absolute_value != 0);
@@ -189,9 +189,9 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   // by 2 introduced overflow.
   // TODO : Find the theoretical optimal number for division, for now we divide
   // by 4 to be safe.
-  _bias_conversion_ratio /=  static_cast<double>(1LL << 10);
-                             if (_bias_conversion_ratio < 1)
-                                _bias_conversion_ratio = 1;
+  _bias_conversion_ratio /= 4; // static_cast<double>(1LL << 10);
+                               // if (_bias_conversion_ratio < 1)
+                               //   _bias_conversion_ratio = 1;
 
   for (int i = 0; i < _num_bqm_variables; i++) {
     _linear_integral_biases[i] = convertToPosiformCoefficient(bqm.linear(i));
