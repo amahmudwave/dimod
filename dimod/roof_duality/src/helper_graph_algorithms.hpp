@@ -379,9 +379,10 @@ void createGraphOfStronglyConnectedComponents(
     std::vector<std::vector<int>> &components,
     std::vector<std::vector<int>> &adjacency_list_residual,
     std::vector<std::vector<int>> &adjacency_list_components) {
+    int num_components = components.size();
+    adjacency_list_components.resize(num_components);
 #pragma omp parallel
   {
-    int num_components = components.size();
     std::vector<int> temp_buffer(num_components);
     std::vector<bool> has_edge_to_component(num_components, false);
 #pragma omp for
