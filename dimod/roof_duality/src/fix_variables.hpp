@@ -1407,7 +1407,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      std::vector<std::pair<int, int>> fixed_variables;
      implNet.fixVariables(fixed_variables, false);
-/*
+
 
      for(int i = 0; i < fixed_variables.size(); i++) {
         fixed_variables[i].first = pi.mapVariablePosiformToQubo(fixed_variables[i].first);
@@ -1415,7 +1415,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
     
-     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, 2); 
+     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, 1); 
      std::cout << "Comparing old and new methods " << std::endl; 
 
      for(int i = 0; i < fixed_variables.size(); i++) {
@@ -1424,7 +1424,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
              std::cout <<"Mismatch " << fixed_variables[i].first <<" " <<  (fixed_variables_old[i].first-1) << " " <<fixed_variables[i].second << " "  << fixed_variables_old[i].second << std::endl;
 	  }
      }
- */
+ 
 }
 
 } // namespace fix_variables_
