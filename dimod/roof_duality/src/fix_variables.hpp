@@ -426,7 +426,7 @@ compressed_matrix::CompressedMatrix<long long int> maxFlow(const compressed_matr
 	//curr_1 = curr_2;
 
    	long long int flowValueBoost = push_relabel_max_flow(g, s, t);
-//	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
+	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	curr_2 = clock();
 //	printf("inside maxFlow int version: Time elapsed_for_boost_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1405,40 +1405,47 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 //     implNet.print();
 //     curr_2 = clock();
 //     printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-
+     
+     bool sample = (method == 2) ? true : false;
      std::vector<std::pair<int, int>> fixed_variables_posiform;
      std::vector<std::pair<int, int>> fixed_variables;
      fixed_variables.reserve(numVars);
-     implNet.fixVariables(fixed_variables_posiform, false);
-     std::cout <<"Done getting results" <<std::endl; 
+     implNet.fixVariables(fixed_variables_posiform, sample);
 
      for(int i = 0; i < fixed_variables_posiform.size(); i++) {
         int bqm_variable = pi.mapVariablePosiformToQubo(fixed_variables_posiform[i].first);
         fixed_variables.push_back({ bqm_variable ,  fixed_variables_posiform[i].second });
      }
-      
+     
+     if(!sample) { 
      for(int bqm_variable = 0; bqm_variable < numVars; bqm_variable++) {
         if(pi.mapVariableQuboToPosiform(bqm_variable) < 0) {
             fixed_variables.push_back({ bqm_variable , 1 });
         }
+     }
      }
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
 
      curr_2 = clock();
      printf("Time new Method: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-
+     std::cout <<"Method used " << method <<std::endl; 
      
-     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, 1); 
+     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, method); 
      std::cout << "Comparing old and new methods " << std::endl; 
     
      bool mismatch = false;
-
+     
+     if(fixed_variables.size() != fixed_variables_old.size()) {
+		mismatch = true;
+     }
+     if(!mismatch) {
      for(int i = 0; i < fixed_variables.size(); i++) {
 	  if((fixed_variables[i].first != (fixed_variables_old[i].first-1)) || (fixed_variables[i].second != fixed_variables_old[i].second)) 
 	  {
 		mismatch = true;
 	  }
+     } 
      }
 
      if(mismatch) { 
@@ -1448,6 +1455,8 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      for(int i = 0; i < fixed_variables.size(); i++) {
              std::cout <<fixed_variables[i].first <<"   " <<fixed_variables[i].second << std::endl;
      }
+
+     std::cout << "Old Method " << std::endl; 
     for(int i = 0; i < fixed_variables_old.size(); i++) {
              std::cout << (fixed_variables_old[i].first-1) << "  "  << fixed_variables_old[i].second << std::endl;
      }
