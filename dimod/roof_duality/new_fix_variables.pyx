@@ -30,9 +30,6 @@ from dimod.discrete.cydiscrete_quadratic_model cimport cyDiscreteQuadraticModel,
 from dimod.vartypes import Vartype
 
 cdef extern from "fix_variables.hpp" namespace "fix_variables_":
-    vector[pair[int, int]] fixQuboVariablesMap(map[pair[int, int], double] QMap,
-                                               int QSize, int method) except +
-
     vector[pair[int, int]] fixQuboVariables[V, B](cppAdjVectorBQM[V, B]& refBQM,
                                             int method) except +
 
@@ -53,16 +50,6 @@ def fix_variables_wrapper(bqm, method):
     if method < 1 or method > 2:
         raise ValueError("method should 1 or 2")
 
-    t0 = time.perf_counter()
-    cdef map[pair[int, int], double] QMap
-    for (u, v), bias in bqm.quadratic.items():
-        QMap[pair[int, int](u, v)] = bias
-    for v, bias in bqm.linear.items():
-        QMap[pair[int, int](v, v)] = bias
-
-    fixed = fixQuboVariablesMap(QMap, len(bqm), int(method))
-    t1 = time.perf_counter()
     cdef cyAdjVectorBQM cvbqm = bqm
-    fixed_2 = fixQuboVariables[VarIndex, Bias](cvbqm.bqm_, int(method));
-    print("Time taken by old method ", t1 -t0 )
-    return {int(v - 1): int(val) for v, val in fixed}
+    fixed = fixQuboVariables[VarIndex, Bias](cvbqm.bqm_, int(method));
+    return {int(v): int(val) for v, val in fixed}
