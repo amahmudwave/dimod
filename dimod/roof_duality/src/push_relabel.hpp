@@ -329,6 +329,10 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
           // significantly impact performance.
           DEBUG_INCREMENT(_num_pushes);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
+          if(flow < 0) {
+               std::cout <<"Negative flow chosen, overflow could be the reason." << std::endl;
+               std::cout <<"Edge residual " << eit->residual << " Vertex excess " << _vertices[vertex].excess;
+          }
           eit->residual -= flow;
           _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
           _vertices[vertex].excess -= flow;

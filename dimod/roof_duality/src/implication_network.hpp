@@ -406,6 +406,9 @@ void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
+  auto init_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
+  std::cout <<"Flow " << init_flow_validity.first << " is valid ? " << init_flow_validity.second << std::endl;   
+
   std::vector<int> bfs_depth_values;
   int UNVISITED = breadthFirstSearchResidual(_adjacency_list, _source,
                                              bfs_depth_values, false, false);
@@ -490,9 +493,15 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
+  auto init_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
+  std::cout <<"Flow " << init_flow_validity.first << " is valid ? " << init_flow_validity.second << std::endl;   
+
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
+
+  auto symm_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
+  std::cout <<"Flow " << symm_flow_validity.first << " is valid ? " << symm_flow_validity.second << std::endl;   
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
