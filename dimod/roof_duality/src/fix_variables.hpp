@@ -426,10 +426,10 @@ compressed_matrix::CompressedMatrix<long long int> maxFlow(const compressed_matr
 	//curr_1 = curr_2;
 
    	long long int flowValueBoost = push_relabel_max_flow(g, s, t);
-	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
+//	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	curr_2 = clock();
-	printf("inside maxFlow int version: Time elapsed_for_boost_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	printf("inside maxFlow int version: Time elapsed_for_boost_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
 
 	std::vector<int> RRowOffsets(numVertices+1);
@@ -627,13 +627,14 @@ SCRet stronglyConnectedComponents(const compressed_matrix::CompressedMatrix<long
 	//int num = strong_components(G, &component[0], root_map(&root[0]).color_map(&color[0]).discover_time_map(&discover_time[0]));
 	int num = strong_components(G, boost::make_iterator_property_map(component.begin(), boost::get(boost::vertex_index, G)),
 			                                root_map(boost::make_iterator_property_map(root.begin(), boost::get(boost::vertex_index, G))).color_map(boost::make_iterator_property_map(color.begin(), boost::get(boost::vertex_index, G))).discover_time_map(boost::make_iterator_property_map(discover_time.begin(), boost::get(boost::vertex_index, G))));
- 
+
+/* 
      std::cout <<"Boost strong components: " << std::endl;
      std::cout << "Vertex - Component" << std::endl;
      for(int i = 0; i < numVertices; i++) {
         std::cout <<i << "  " << component[i] << std::endl ; 
      }
-
+*/
 	//curr_2 = clock();
 	//mexPrintf("Time elapsed_boost_strongly_connected_components_graph: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	//curr_1 = curr_2;
@@ -1063,7 +1064,7 @@ std::vector<std::pair<int, int> > applyImplication(const compressed_matrix::Comp
 	//curr_1 = curr_2;
 
 	long long int flowValueBoost =  push_relabel_max_flow(g, s, t);
-	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
+	//std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	//curr_2 = clock();
 	//mexPrintf("inside applyImplication int version: Time elapsed_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1256,7 +1257,7 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 	if (!uTriQ.values().empty())
 		maxAbsValue = std::fabs(*std::max_element(uTriQ.values().begin(), uTriQ.values().end(), compareAbs));
 
-	std::cout << "Max abs value " << maxAbsValue << std::endl;
+	//std::cout << "Max abs value " << maxAbsValue << std::endl;
 
 	double ratio = 1;
 
@@ -1275,33 +1276,33 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 
 	compressed_matrix::CompressedMatrix<long long int> uTriQLLI(numVariables, numVariables, uTriQMapLLI);
 	curr_2 = clock();
-	printf("Time elapsed_make upper triangular: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	printf("Time elapsed_make upper triangular: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	curr_1 = curr_2;
 
 	Posiform p = BQPToPosiform(uTriQLLI);
 	//printPosiform(p);
 	curr_2 = clock();
-	printf("Time elapsed_BQPToPosiform: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	printf("Time elapsed_BQPToPosiform: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	curr_1 = clock();
-	printf("Method : %d \n " , method );
+//	printf("Method : %d \n " , method );
 	if (method == 1)
 	{
 		compressed_matrix::CompressedMatrix<long long int> A = posiformToImplicationNetwork_1(p);
 
 	curr_2 = clock();
-	 printf("Time elapsed_posiformToImplicationNetwork_1: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	 printf("Time elapsed_posiformToImplicationNetwork_1: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	 curr_1 = curr_2;
 
 		compressed_matrix::CompressedMatrix<long long int> R = maxFlow(A);  //use this
 
 		curr_2 = clock();
-	    printf("Time elapsed_maxFlow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	    printf("Time elapsed_maxFlow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	    curr_1 = curr_2;
 
 		compressed_matrix::CompressedMatrix<long long int> symR = makeResidualSymmetric(R); //use this
 
 	curr_2 = clock();
-	    printf("Time elapsed_makeRSym: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	    printf("Time elapsed_makeRSym: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	    curr_1 = curr_2;
 
 		//add clearing R in makeResidualSym, so here just use symR directly !!!
@@ -1309,19 +1310,19 @@ FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<do
 
 
 		curr_2 = clock();
-	   printf("Time elapsed_stronglyConnectedComponents: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	   printf("Time elapsed_stronglyConnectedComponents: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	    curr_1 = curr_2;
 
 		std::vector<int> classifiedSC = classifyStronglyConnectedComponents(scRet.S);
 
 		curr_2 = clock();
-	    printf("Time elapsed_classifyStrongComponents: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	    printf("Time elapsed_classifyStrongComponents: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	    curr_1 = curr_2;
 
 		ret.fixedVars = fixVariables(classifiedSC, scRet, numVariables);
 
 		curr_2 = clock();
-	    printf("Time elapsed_fixVarsUsingOutDegree: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//	    printf("Time elapsed_fixVarsUsingOutDegree: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 	    curr_1 = curr_2;
 	}
 	else if (method == 2)
@@ -1391,40 +1392,67 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	}
       }
 
-	clock_t curr_1 = clock();
-	clock_t curr_2;
+     clock_t curr_1 = clock();
+     clock_t curr_2;
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
-  //   pi.print();
-     curr_2 = clock();
-     printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-     curr_1 = clock();
+//     pi.print();
+//     curr_2 = clock();
+//     printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//     curr_1 = clock();
 
      ImplicationNetwork<long long int> implNet(pi);
 //     implNet.print();
-     curr_2 = clock();
-     printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+//     curr_2 = clock();
+//     printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
 
+     std::vector<std::pair<int, int>> fixed_variables_posiform;
      std::vector<std::pair<int, int>> fixed_variables;
-     implNet.fixVariables(fixed_variables, false);
+     fixed_variables.reserve(numVars);
+     implNet.fixVariables(fixed_variables_posiform, false);
+     std::cout <<"Done getting results" <<std::endl; 
 
-
-     for(int i = 0; i < fixed_variables.size(); i++) {
-        fixed_variables[i].first = pi.mapVariablePosiformToQubo(fixed_variables[i].first);
+     for(int i = 0; i < fixed_variables_posiform.size(); i++) {
+        int bqm_variable = pi.mapVariablePosiformToQubo(fixed_variables_posiform[i].first);
+        fixed_variables.push_back({ bqm_variable ,  fixed_variables_posiform[i].second });
+     }
+      
+     for(int bqm_variable = 0; bqm_variable < numVars; bqm_variable++) {
+        if(pi.mapVariableQuboToPosiform(bqm_variable) < 0) {
+            fixed_variables.push_back({ bqm_variable , 1 });
+        }
      }
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
-    
+
+     curr_2 = clock();
+     printf("Time new Method: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+
+     
      std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, 1); 
      std::cout << "Comparing old and new methods " << std::endl; 
+    
+     bool mismatch = false;
 
      for(int i = 0; i < fixed_variables.size(); i++) {
 	  if((fixed_variables[i].first != (fixed_variables_old[i].first-1)) || (fixed_variables[i].second != fixed_variables_old[i].second)) 
 	  {
-             std::cout <<"Mismatch " << fixed_variables[i].first <<" " <<  (fixed_variables_old[i].first-1) << " " <<fixed_variables[i].second << " "  << fixed_variables_old[i].second << std::endl;
+		mismatch = true;
 	  }
      }
- 
+
+     if(mismatch) { 
+
+     std::cout << "Mismatch found " << std::endl; 
+     std::cout << "New Method " << std::endl; 
+     for(int i = 0; i < fixed_variables.size(); i++) {
+             std::cout <<fixed_variables[i].first <<"   " <<fixed_variables[i].second << std::endl;
+     }
+    for(int i = 0; i < fixed_variables_old.size(); i++) {
+             std::cout << (fixed_variables_old[i].first-1) << "  "  << fixed_variables_old[i].second << std::endl;
+     }
+
+     }
 }
 
 } // namespace fix_variables_
