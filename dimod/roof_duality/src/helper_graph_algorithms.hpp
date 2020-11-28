@@ -176,11 +176,11 @@ int breadthFirstSearchResidual(
     for (int i = 0; i < depth_values.size(); i++) {
       levels[depth_values[i]].push_back(i);
     }
-    std::cout << endl;
+    std::cout << std::endl;
     std::cout << "Printing " << (reverse ? "reverse " : "")
               << "breadth first search result starting from vertex : "
               << start_vertex << std::endl;
-    std::cout << endl;
+    std::cout << std::endl;
     for (int i = 0; i < levels.size(); i++) {
       if (!levels[i].size()) {
         continue;
@@ -190,9 +190,9 @@ int breadthFirstSearchResidual(
       for (int j = 0; j < levels[i].size(); j++) {
         std::cout << levels[i][j] << " ";
       }
-      std::cout << endl;
+      std::cout << std::endl;
     }
-    std::cout << endl;
+    std::cout << std::endl;
   }
 
   return UNVISITED;
