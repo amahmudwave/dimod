@@ -19,6 +19,9 @@
 
 #ifndef IMPLICATION_NETWORK_HPP_INCLUDED
 #define IMPLICATION_NETWORK_HPP_INCLUDED
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include "helper_graph_algorithms.hpp"
 #include "push_relabel.hpp"
@@ -44,9 +47,21 @@ struct stronglyConnectedComponentsInfo {
 // (2006). Preprocessing of unconstrained quadratic binary optimization. RUTCOR
 // Research Report.
 template <typename capacity_t> class ImplicationEdge {
+private:
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int version) {
+    ar &from_vertex;
+    ar &to_vertex;
+    ar &reverse_edge_index;
+    ar &symmetric_edge_index;
+    ar &residual;
+    ar &_encoded_capacity;
+  }
+
 public:
   typedef capacity_t capacity_type;
-
+  ImplicationEdge() { };
   ImplicationEdge(int from_vertex, int to_vertex, capacity_t capacity,
                   capacity_t reverse_capacity)
       : from_vertex(from_vertex), to_vertex(to_vertex), residual(capacity) {
@@ -122,6 +137,8 @@ template <class capacity_t> class ImplicationNetwork {
 public:
   template <class PosiformInfo> ImplicationNetwork(PosiformInfo &posiform);
 
+  ImplicationNetwork(){ };
+
   void makeResidualSymmetric();
 
   void extractResidualNetworkWithoutSourceInSinkOut(
@@ -177,6 +194,17 @@ private:
 
   void
   fixStrongAndWeakVariables(std::vector<std::pair<int, int>> &fixed_variables);
+
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int version) {
+    ar &_num_variables;
+    ar &_num_vertices;
+    ar &_source;
+    ar &_sink;
+    ar &_adjacency_list_valid;
+    ar &_adjacency_list;
+  }
 
   int _num_variables;
   int _num_vertices;
@@ -407,7 +435,8 @@ void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
          "Maximum flow is not valid.");
 
   auto init_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << init_flow_validity.first << " is valid ? " << init_flow_validity.second << std::endl;   
+  std::cout << "Flow " << init_flow_validity.first << " is valid ? "
+            << init_flow_validity.second << std::endl;
 
   std::vector<int> bfs_depth_values;
   int UNVISITED = breadthFirstSearchResidual(_adjacency_list, _source,
@@ -494,14 +523,16 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
          "Maximum flow is not valid.");
 
   auto init_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << init_flow_validity.first << " is valid ? " << init_flow_validity.second << std::endl;   
+  std::cout << "Flow " << init_flow_validity.first << " is valid ? "
+            << init_flow_validity.second << std::endl;
 
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
   auto symm_flow_validity = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << symm_flow_validity.first << " is valid ? " << symm_flow_validity.second << std::endl;   
+  std::cout << "Flow " << symm_flow_validity.first << " is valid ? "
+            << symm_flow_validity.second << std::endl;
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);

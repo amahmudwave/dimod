@@ -20,6 +20,8 @@
 
 #include <vector>
 #include <utility>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 #include "compressed_matrix.hpp"
 #include "dimod/adjarraybqm.h"
@@ -1396,15 +1398,9 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      clock_t curr_2;
 
      PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
-//     pi.print();
-//     curr_2 = clock();
-//     printf("Time elapsed_PosiformInfo: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-//     curr_1 = clock();
 
      ImplicationNetwork<long long int> implNet(pi);
-//     implNet.print();
-//     curr_2 = clock();
-//     printf("Time elapsed_ImplicationNetwork: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
+     ImplicationNetwork<long long int> implNetBack(pi);
      
      bool sample = (method == 2) ? true : false;
      std::vector<std::pair<int, int>> fixed_variables_posiform;
@@ -1460,6 +1456,28 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
     for(int i = 0; i < fixed_variables_old.size(); i++) {
              std::cout << (fixed_variables_old[i].first-1) << "  "  << fixed_variables_old[i].second << std::endl;
      }
+/*
+	       {
+	        std::ofstream ofs("filename");
+	        // save data to archive
+	        boost::archive::text_oarchive oa(ofs);
+	        // write class instance to archive
+	        oa << implNetBack ;
+	    	// archive and stream closed when destructors are called
+	       }
+	      
+	       {                       
+	        ImplicationNetwork<long long int> implNetLoad;
+		std::ifstream ifs("filename");
+	        boost::archive::text_iarchive ia(ifs);
+	        // read class state from archive
+	        ia >> implNetLoad;
+	        std::cout << "Trying with loaded one " << std::endl;
+		std::vector<std::pair<int, int>> fixed_variablesL;
+	    	fixed_variablesL.reserve(numVars);
+	    	implNetLoad.fixVariables(fixed_variablesL, sample);
+	       }
+*/
 
      }
 }

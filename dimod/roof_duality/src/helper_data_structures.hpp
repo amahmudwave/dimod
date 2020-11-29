@@ -84,10 +84,11 @@ public:
 
 // Linked list that uses preallocated nodes.
 template <typename node> class preallocated_linked_list {
+
+public:
   node _head = node{}, _tail = node{};
   std::size_t _size{0};
 
-public:
   preallocated_linked_list() {
     _head.next = &_tail;
     _tail.prev = &_head;
