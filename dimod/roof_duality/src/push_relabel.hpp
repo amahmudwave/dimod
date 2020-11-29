@@ -37,9 +37,8 @@
 #include <vector>
 
 #include "helper_data_structures.hpp"
-#include "helper_graph_algorithms.hpp"
 
-#define COLLECT_STATISTICS
+//#define COLLECT_STATISTICS
 
 #ifdef COLLECT_STATISTICS
 #define DEBUG_INCREMENT(x) ((x)++)
@@ -85,7 +84,6 @@ public:
 
   capacity_t computeMaximumFlow(bool handle_self_loops = false);
 
- void printVertices(); 
   void printStatistics();
 
 private:
@@ -177,22 +175,6 @@ PushRelabelSolver<EdgeType>::PushRelabelSolver(
     _vertices[vertex].height = 1;
     _vertices[vertex].excess = 0;
     _num_edges += _adjacency_list[vertex].size();
-    if((_levels[vertex].active_vertices._head.next != &(_levels[vertex].active_vertices._tail)) || (_levels[vertex].active_vertices._tail.prev != &(_levels[vertex].active_vertices._head)) ||
-       (_levels[vertex].active_vertices._size != 0)) {
-	  std::cout <<"PROBLEM with active linked list" <<std::endl;
-	  std::cout <<"Size " << _levels[vertex].active_vertices._size << std::endl;
-	  std::cout <<"Headnext tail " << _levels[vertex].active_vertices._head.next << " "  << &(_levels[vertex].active_vertices._tail)<<std::endl;
-	  std::cout <<"Tailprev head " << _levels[vertex].active_vertices._tail.prev << " "  << &(_levels[vertex].active_vertices._head) <<std::endl;
-       }
-
-   if((_levels[vertex].inactive_vertices._head.next != &(_levels[vertex].inactive_vertices._tail)) || (_levels[vertex].inactive_vertices._tail.prev != &(_levels[vertex].inactive_vertices._head)) ||
-       (_levels[vertex].inactive_vertices._size != 0)) {
-	  std::cout <<"PROBLEM with inactive linked list" <<std::endl;
-	  std::cout <<"Size " << _levels[vertex].inactive_vertices._size << std::endl;
-	  std::cout <<"Headnext tail " << _levels[vertex].inactive_vertices._head.next << " "  << &(_levels[vertex].inactive_vertices._tail)<<std::endl;
-	  std::cout <<"Tailprev head " << _levels[vertex].inactive_vertices._tail.prev << " "  << &(_levels[vertex].inactive_vertices._head) <<std::endl;
-       }
-
   }
   _vertices[_source].height = _num_vertices;
   _vertices[_sink].height = 0;
@@ -296,16 +278,6 @@ template <class EdgeType> void PushRelabelSolver<EdgeType>::globalRelabel() {
       break;
     }
   }
-  std::vector<int> depths;
-  int dfound = 0;
-  int dunvisited = breadthFirstSearchResidual(_adjacency_list, _sink, depths, true, false);
-  for(int i = 0; i < depths.size(); i++){
-    if(depths[i] != dunvisited) dfound++;
-  }
-  if(dfound != num_vertices_found) {
-   std::cout << "Problem : global relabeling and bfs differ" << num_vertices_found << " " << dfound <<std::endl;
-  }  
-
 }
 
 template <class EdgeType>
@@ -358,11 +330,6 @@ void PushRelabelSolver<EdgeType>::discharge(int vertex) {
           // significantly impact performance.
           DEBUG_INCREMENT(_num_pushes);
           capacity_t flow = std::min(eit->residual, _vertices[vertex].excess);
-          if(flow < 0) {
-	       std::cout <<"PROBLEM"<<std::endl;
-               std::cout <<"Negative flow chosen, overflow could be the reason." << std::endl;
-               std::cout <<"Edge residual " << eit->residual << " Vertex excess " << _vertices[vertex].excess;
-          }
           eit->residual -= flow;
           _adjacency_list[to_vertex][eit->reverse_edge_index].residual += flow;
           _vertices[vertex].excess -= flow;
@@ -416,31 +383,11 @@ template <class EdgeType>
 void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
   DEBUG_INCREMENT(_num_gap_relabels);
   assert(empty_level_height <= _max_height);
-/*
-  printLevels();
-  printVertices();
-
-
-  std::cout << "Empty height - max height " << empty_level_height << " " << _max_height <<  std::endl;
-  if(empty_level_height > _max_height) {
-    std::cout << "PROBLEM Empty height found greater than max height " << empty_level_height << " " << _max_height <<  std::endl;
-  }
- 
-  if( !_levels[empty_level_height].active_vertices.empty() ||  !_levels[empty_level_height].inactive_vertices.empty() ) {
-   std::cout<< "Gap relabel called with wrong height " << std::endl;
-  }
-
- */
-
   auto level_it = _levels.begin() + empty_level_height + 1;
   auto level_it_end = _levels.begin() + _max_height + 1;
-
   for (; level_it != level_it_end; level_it++) {
     // The last highest active vertex processed was from the empty_level_height.
     assert(level_it->active_vertices.empty());
-    if(!level_it->active_vertices.empty()) {
-      std::cout << "PROBLEM Why is level  " << std::distance(_levels.begin(), level_it) << " not empty. During gap label " << empty_level_height << std::endl;
-    }
     int inactive_level_size = level_it->inactive_vertices.size();
     vertex_node_t *vertex_node_ptr = level_it->inactive_vertices.front();
     for (int i = 0; i < inactive_level_size; i++) {
@@ -454,9 +401,6 @@ void PushRelabelSolver<EdgeType>::gapRelabel(int empty_level_height) {
   _max_active_height = empty_level_height - 1;
   assert(_max_height >= 0 && _max_height < _num_vertices);
   assert(_max_active_height >= 0 && _max_active_height < _num_vertices);
- // printLevels();
- // printVertices();
-
 }
 
 template <class EdgeType>
@@ -725,27 +669,10 @@ template <class EdgeType>
 typename EdgeType::capacity_type
 PushRelabelSolver<EdgeType>::computeMaximumFlow(bool handle_self_loops) {
   capacity_t maximum_flow = computeMaximumPreflow();
-  std::cout <<"Computed preflow " << maximum_flow << std::endl;
-  std::vector<int> depth_values;
-  int UNVISITED = breadthFirstSearchResidual(_adjacency_list, _sink, depth_values,
-                                             true, true);
-  printStatistics();
-  if(depth_values[_source] != UNVISITED) 
-  {
-    std::cout<<"Computed preflow is invalid since source is reachable." << std::endl;
-  }
   convertPreflowToFlow(handle_self_loops);
   return maximum_flow;
 }
 
-template <class EdgeType> void PushRelabelSolver<EdgeType>::printVertices() {
-  std::cout<<"Printing vertex height from vertex list" << std::endl;
- for(int vertex = 0; vertex < _num_vertices; vertex++) {
-    std::cout <<vertex << " " << _vertices[vertex].height << " " << _vertices[vertex].excess << std::endl;
- }
-}
-
- 
 template <class EdgeType> void PushRelabelSolver<EdgeType>::printLevels() {
   std::cout << "Printing Levels. " << _levels.size() << " in total for "
             << _num_vertices << " vertices." << std::endl;
