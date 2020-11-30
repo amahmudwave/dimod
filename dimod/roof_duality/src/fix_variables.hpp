@@ -1378,7 +1378,6 @@ template<class V, class B>
 std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm, int method)
 {
       int numVars = bqm.num_variables();
-      std::vector<bool> isUsed(numVars, false);
 
       // Temporary code to maintain compatibility with legacy code
       std::map<std::pair<int, int>, double> QMap;
@@ -1400,8 +1399,6 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
 
      ImplicationNetwork<long long int> implNet(pi);
-     ImplicationNetwork<long long int> implNetBack(pi);
-     
      bool sample = (method == 2) ? true : false;
      std::vector<std::pair<int, int>> fixed_variables_posiform;
      std::vector<std::pair<int, int>> fixed_variables;
@@ -1422,7 +1419,9 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      }
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
+     return fixed_variables;
 
+     
      curr_2 = clock();
      printf("Time new Method: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
      std::cout <<"Method used " << method <<std::endl; 
@@ -1436,50 +1435,29 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 		mismatch = true;
      }
      if(!mismatch) {
-     for(int i = 0; i < fixed_variables.size(); i++) {
-	  if((fixed_variables[i].first != (fixed_variables_old[i].first-1)) || (fixed_variables[i].second != fixed_variables_old[i].second)) 
-	  {
-		mismatch = true;
-	  }
-     } 
+       for(int i = 0; i < fixed_variables.size(); i++) {
+      	  if((fixed_variables[i].first != (fixed_variables_old[i].first-1)) || (fixed_variables[i].second != fixed_variables_old[i].second)) 
+      	  {
+      		mismatch = true;
+      	  }
+        } 
      }
 
      if(mismatch) { 
 
-     std::cout << "Mismatch found " << std::endl; 
-     std::cout << "New Method " << std::endl; 
-     for(int i = 0; i < fixed_variables.size(); i++) {
-             std::cout <<fixed_variables[i].first <<"   " <<fixed_variables[i].second << std::endl;
-     }
-
-     std::cout << "Old Method " << std::endl; 
-    for(int i = 0; i < fixed_variables_old.size(); i++) {
-             std::cout << (fixed_variables_old[i].first-1) << "  "  << fixed_variables_old[i].second << std::endl;
-     }
-/*
-	       {
-	        std::ofstream ofs("filename");
-	        // save data to archive
-	        boost::archive::text_oarchive oa(ofs);
-	        // write class instance to archive
-	        oa << implNetBack ;
-	    	// archive and stream closed when destructors are called
-	       }
-	      
-	       {                       
-	        ImplicationNetwork<long long int> implNetLoad;
-		std::ifstream ifs("filename");
-	        boost::archive::text_iarchive ia(ifs);
-	        // read class state from archive
-	        ia >> implNetLoad;
-	        std::cout << "Trying with loaded one " << std::endl;
-		std::vector<std::pair<int, int>> fixed_variablesL;
-	    	fixed_variablesL.reserve(numVars);
-	    	implNetLoad.fixVariables(fixed_variablesL, sample);
-	       }
-*/
+         std::cout << "Mismatch found " << std::endl; 
+         std::cout << "New Method " << std::endl; 
+         for(int i = 0; i < fixed_variables.size(); i++) {
+                 std::cout <<fixed_variables[i].first <<"   " <<fixed_variables[i].second << std::endl;
+         }
+    
+         std::cout << "Old Method " << std::endl; 
+        for(int i = 0; i < fixed_variables_old.size(); i++) {
+                 std::cout << (fixed_variables_old[i].first-1) << "  "  << fixed_variables_old[i].second << std::endl;
+         }
 
      }
+     
 }
 
 } // namespace fix_variables_
