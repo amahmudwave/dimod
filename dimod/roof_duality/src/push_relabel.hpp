@@ -56,6 +56,18 @@ public:
   using edge_iterator = typename std::vector<EdgeType>::iterator;
   using capacity_t = typename EdgeType::capacity_type;
 
+  PushRelabelSolver(std::vector<std::vector<EdgeType>> &adjacency_list,
+                    int source, int sink);
+
+  capacity_t computeMaximumPreflow();
+
+  void convertPreflowToFlow(bool handle_self_loops = false);
+
+  capacity_t computeMaximumFlow(bool handle_self_loops = false);
+
+  void printStatistics();
+
+private:
   // We use preallocated vertex nodes for maintaining the linked list since we
   // know the total number of vertices. Vertex number is redundant but when
   // capacity_t is of a type consuming 8 bytes, structural padding will waste
@@ -75,18 +87,6 @@ public:
     preallocated_linked_list<vertex_node_t> inactive_vertices;
   };
 
-  PushRelabelSolver(std::vector<std::vector<EdgeType>> &adjacency_list,
-                    int source, int sink);
-
-  capacity_t computeMaximumPreflow();
-
-  void convertPreflowToFlow(bool handle_self_loops = false);
-
-  capacity_t computeMaximumFlow(bool handle_self_loops = false);
-
-  void printStatistics();
-
-private:
   // This will always be manually inlined, without relying on the compiler to do
   // so since this function is very small and the algorithm calls this the
   // highest number of times.
