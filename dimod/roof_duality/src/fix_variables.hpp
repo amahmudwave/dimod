@@ -1419,7 +1419,6 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
      }
 
      std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
-     return fixed_variables;
 
      
      curr_2 = clock();
@@ -1458,6 +1457,7 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 
      }
      
+     return fixed_variables;
 }
 
 } // namespace fix_variables_
