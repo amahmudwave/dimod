@@ -182,7 +182,8 @@ private:
   // virtual class would further increase it. We add this mapper the mapping
   // that is easy to debug is not the best for performance considerations and
   // also it makes the code slightly less prone to errors..
-  sequentialMapper _mapper;
+  //sequentialMapper _mapper;
+  evenOddMapper _mapper;
   std::vector<std::vector<ImplicationEdge<capacity_t>>> _adjacency_list;
 };
 
@@ -197,7 +198,8 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
          "value than the type of coefficients in source posiform.");
   _num_variables = posiform.getNumVariables();
   _num_vertices = 2 * _num_variables + 2;
-  _mapper = sequentialMapper(_num_variables);
+  // _mapper = sequentialMapper(_num_variables);
+  _mapper = evenOddMapper(_num_variables);
   _source = _mapper.source();
   _sink = _mapper.sink();
   _adjacency_list.resize(2 * _num_variables + 2);
