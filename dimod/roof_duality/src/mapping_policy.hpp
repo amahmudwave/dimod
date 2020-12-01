@@ -77,13 +77,13 @@ private:
   int _num_variables;
 };
 
-// The oddEvenMapper maps variable x to vertex 2 * x and its complement is 2 * x
+// The evenOddMapper maps variable x to vertex 2 * x and its complement is 2 * x
 // + 1. Same as before we consider variable n to be the source.
 class evenOddMapper {
 public:
-  oddEvenMapper(int num_variables) : _num_variables(num_variables) {}
+  evenOddMapper(int num_variables) : _num_variables(num_variables) {}
 
-  oddEvenMapper() {}
+  evenOddMapper() {}
 
   inline int source() { return 2 * _num_variables; }
 
