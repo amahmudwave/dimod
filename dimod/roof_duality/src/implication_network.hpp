@@ -20,8 +20,6 @@
 #ifndef IMPLICATION_NETWORK_HPP_INCLUDED
 #define IMPLICATION_NETWORK_HPP_INCLUDED
 
-#define PARALLELIZATION_VARIABLE_THRESHOLD 20000
-
 #include "helper_graph_algorithms.hpp"
 #include "push_relabel.hpp"
 
@@ -56,23 +54,6 @@ public:
            "Either capacity or reverse edge capacity must be zero.");
     _encoded_capacity = (!capacity) ? -reverse_capacity : capacity;
   }
-
-  // This empty constructor must be inlined for having a low overhead for std::vector resize that will be used in the parallel version of implicit network creation. We do not want anything to be done during the call to resize for the vectors of ImplicatioEdge, which will call the constructor of ImplicationEdge.
-  inline ImplicationEdge() __attribute__((always_inline)) { };
-
-  inline fillData(int from_vertex_, int to_vertex_, capacity_t capacity_,
-                  capacity_t reverse_capacity_, int reverse_edge_index_, int symmetric_edge_index_)  __attribute__((always_inline))
-  {
-    assert((!capacity || !reverse_capacity) &&
-           "Either capacity or reverse edge capacity must be zero.");
-    from_vertex = from_vertex_;
-    to_vertex = to_vertex_;
-    residual = capacity_;
-    _encoded_capacity = (!capacity_) ? -reverse_capacity_ : capacity_;
-    reverse_edge_index = reverse_edge_index_;
-    symmetric_edge_index = symmetric_edge_index_;
-  }
-
 
   void print() {
     std::cout << std::endl;
@@ -184,8 +165,6 @@ private:
     }
   }
 
-  template <class PosiformInfo> void fillImplicationNetworkSerial(PosiformInfo &posiform); 
-  template <class PosiformInfo> void fillImplicationNetworkParallel(PosiformInfo &posiform); 
   void fillLastOutEdgeReferences(int from_vertex, int to_vertex);
   void createImplicationNetworkEdges(int from_vertex, int to_vertex,
                                      capacity_t capacity);
@@ -209,7 +188,24 @@ private:
 
 template <class capacity_t>
 template <class PosiformInfo>
-void ImplicationNetwork<capacity_t>::fillImplicationNetworkSerial(PosiformInfo &posiform) {
+ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
+  assert(std::is_integral(capacity_t) && std::is_signed(capacity_t) &&
+         "Implication Network must have signed, integral type coefficients");
+  assert((std::numeric_limits<capacity_t>::max() >=
+          std::numeric_limits<Posiform::coefficient_type> max()) &&
+         "Implication Network must have capacity type with larger maximum "
+         "value than the type of coefficients in source posiform.");
+  _num_variables = posiform.getNumVariables();
+  _num_vertices = 2 * _num_variables + 2;
+  _source = _num_variables;
+  _sink = 2 * _num_variables + 1;
+  _adjacency_list.resize(2 * _num_variables + 2);
+
+  // The complement function should only be used after setting the above
+  // variables.
+  assert(_sink == complement(_source));
+  assert(_source == complement(_sink));
+
   int num_linear = posiform.getNumLinear();
   _adjacency_list[_source].reserve(num_linear);
   _adjacency_list[_sink].reserve(num_linear);
@@ -256,88 +252,6 @@ void ImplicationNetwork<capacity_t>::fillImplicationNetworkSerial(PosiformInfo &
       }
     }
   }
-}
-
-template <class capacity_t>
-template <class PosiformInfo>
-void ImplicationNetwork<capacity_t>::fillImplicationNetworkParallel(PosiformInfo &posiform) {
-  int num_linear = posiform.getNumLinear();
-  std::vector<int> counters(_num_vertices, 0);
-  _adjacency_list[_source].resize(num_linear);
-  _adjacency_list[_sink].resize(num_linear);
-
-  // For efficiency we preallocate the vectors first.
-  // There are reverse edges for each edge created in the implication graph.
-  // Depending on the sign of the bias, an edge may start from v or v' but
-  // reverse edges makes the number of edges coming out of v and v' the same and
-  // are equal to 1/0 + number of quadratic biases in which v contributes. The +
-  // 1 is due to the linear term when it is present.
-  #pragma omp parallel for
-  for (int u = 0; u < _num_variables; u++) {
-    int u_complement = complement(u);
-    int num_out_edges = posiform.getNumQuadratic(u);
-    auto linear = posiform.getLinear(u);
-    if (linear) {
-      num_out_edges++;
-    }
-    _adjacency_list[u].resize(num_out_edges);
-    _adjacency_list[u_complement].resize(num_out_edges);
-  }
-
-  // We are processing an upper triangular matrix, we want to use parallelixm only for the upper rows which are longer. This allows for the benefits of parallelism outweight the overheads.
-  int first_vertex_serial = _num_variables - PARALLELIZATION_VARIABLE_THRESHOLD;
-  for (int u = 0; u < first_vertex_serial; u++) {
-    int u_complement = complement(u);
-    auto linear = posiform.getLinear(u);
-    if (linear > 0) {
-      createImplicationNetworkEdges(_source, u_complement, linear);
-    } else if (linear < 0) {
-      createImplicationNetworkEdges(_source, u, -linear);
-    }
-    auto quadratic_span = posiform.getQuadratic(u);
-    auto it = quadratic_span.first;
-    auto it_end = quadratic_span.second;
-    for (; it != it_end; it++) {
-      // The quadratic iterators, in the posiform, belong  to the original
-      // bqm, thus the variables, must be mapped to the posiform variables,
-      // and the biases should be ideally converted to the same type the
-      // posiform represens them in.
-      auto coefficient = posiform.convertToPosiformCoefficient(it->second);
-      int v = posiform.mapVariableQuboToPosiform(it->first);
-      if (coefficient > 0) {
-        createImplicationNetworkEdges(u, complement(v), coefficient);
-      } else if (coefficient < 0) {
-        createImplicationNetworkEdges(u, v, -coefficient);
-      }
-    }
-  }
-}
-
-template <class capacity_t>
-template <class PosiformInfo>
-ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
-  assert(std::is_integral(capacity_t) && std::is_signed(capacity_t) &&
-         "Implication Network must have signed, integral type coefficients");
-  assert((std::numeric_limits<capacity_t>::max() >=
-          std::numeric_limits<Posiform::coefficient_type> max()) &&
-         "Implication Network must have capacity type with larger maximum "
-         "value than the type of coefficients in source posiform.");
-  _num_variables = posiform.getNumVariables();
-  _num_vertices = 2 * _num_variables + 2;
-  _source = _num_variables;
-  _sink = 2 * _num_variables + 1;
-  _adjacency_list.resize(2 * _num_variables + 2);
-
-  // The complement function should only be used after setting the above
-  // variables.
-  assert(_sink == complement(_source));
-  assert(_source == complement(_sink));
-
-  if(_num_variables < PARALLELIZATION_VARIABLE_THRESHOLD) {
-      fillImplicationNetworkSerial(posiform);
-  } else {
-      fillImplicationNetworkParallel(posiform);
-  }
   _adjacency_list_valid = true;
 }
 
@@ -347,7 +261,7 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
   checkAdjacencyListValidity();
-//#pragma omp parallel for
+#pragma omp parallel for
   for (int vertex = 0; vertex < _num_vertices; vertex++) {
     auto eit = _adjacency_list[vertex].begin();
     auto eit_end = _adjacency_list[vertex].end();
@@ -398,10 +312,10 @@ void ImplicationNetwork<capacity_t>::
         bool free_original_adjacency_list) {
   checkAdjacencyListValidity();
   adjacency_list_residual.resize(_num_vertices);
-//#pragma omp parallel
+#pragma omp parallel
   {
     std::vector<int> temp_buffer(_num_vertices);
-//#pragma omp for
+#pragma omp for
     for (int vertex = 0; vertex < _num_vertices; vertex++) {
       if (vertex != _sink) {
         int num_residual_out_edges = 0;
@@ -469,28 +383,6 @@ void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
   int to_vertex_complement = complement(to_vertex);
   _adjacency_list[from_vertex].emplace_back(
       ImplicationEdge<capacity_t>(from_vertex, to_vertex, capacity, 0));
-  _adjacency_list[to_vertex].emplace_back(
-      ImplicationEdge<capacity_t>(to_vertex, from_vertex, 0, capacity));
-  _adjacency_list[to_vertex_complement].emplace_back(
-      ImplicationEdge<capacity_t>(to_vertex_complement, from_vertex_complement,
-                                  capacity, 0));
-  _adjacency_list[from_vertex_complement].emplace_back(
-      ImplicationEdge<capacity_t>(from_vertex_complement, to_vertex_complement,
-                                  0, capacity));
-  fillLastOutEdgeReferences(from_vertex, to_vertex);
-  fillLastOutEdgeReferences(to_vertex, from_vertex);
-  fillLastOutEdgeReferences(to_vertex_complement, from_vertex_complement);
-  fillLastOutEdgeReferences(from_vertex_complement, to_vertex_complement);
-}
-
-// Each term in posiform produces four edges in implication network
-// the reverse edges and the symmetric edges.
-template <class capacity_t>
-void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
-   int from_vertex, int to_vertex, capacity_t capacity, std::vector<int>& counters) {
-  int from_vertex_complement = complement(from_vertex);
-  int to_vertex_complement = complement(to_vertex);
-  _adjacency_list[from_vertex][counters[vertex]++] = ImplicationEdge<capacity_t>(from_vertex, to_vertex, capacity, 0);
   _adjacency_list[to_vertex].emplace_back(
       ImplicationEdge<capacity_t>(to_vertex, from_vertex, 0, capacity));
   _adjacency_list[to_vertex_complement].emplace_back(
@@ -598,15 +490,9 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
-  auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Max flow " << res.first << " is valid ? " << res.second << std::endl; 
-
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
-
-  res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Max flow symmetric" << res.first << " is valid ? " << res.second << std::endl; 
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
