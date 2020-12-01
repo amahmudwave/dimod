@@ -39,8 +39,11 @@ public:
   typedef capacity_t capacity_type;
 
   ImplicationEdge(int from_vertex, int to_vertex, capacity_t capacity,
-                  capacity_t reverse_capacity)
-      : from_vertex(from_vertex), to_vertex(to_vertex), residual(capacity) {
+                  capacity_t reverse_capacity, int reverse_edge_index,
+                  int symmetric_edge_index)
+      : from_vertex(from_vertex), to_vertex(to_vertex), residual(capacity),
+        reverse_edge_index(reverse_edge_index),
+        symmetric_edge_index(symmetric_edge_index) {
     assert((!capacity || !reverse_capacity) &&
            "Either capacity or reverse edge capacity must be zero.");
     _encoded_capacity = (!capacity) ? -reverse_capacity : capacity;
@@ -167,8 +170,6 @@ private:
   void
   fixStrongAndWeakVariables(std::vector<std::pair<int, int>> &fixed_variables);
 
-  void fillLastOutEdgeReferences(int from_vertex, int to_vertex);
-
   void createImplicationNetworkEdges(int from_vertex, int to_vertex,
                                      capacity_t capacity);
 
@@ -182,7 +183,7 @@ private:
   // virtual class would further increase it. We add this mapper the mapping
   // that is easy to debug is not the best for performance considerations and
   // also it makes the code slightly less prone to errors..
-  //sequentialMapper _mapper;
+  // sequentialMapper _mapper;
   evenOddMapper _mapper;
   std::vector<std::vector<ImplicationEdge<capacity_t>>> _adjacency_list;
 };
@@ -365,15 +366,6 @@ template <class capacity_t> void ImplicationNetwork<capacity_t>::print() {
   }
 }
 
-template <class capacity_t>
-void ImplicationNetwork<capacity_t>::fillLastOutEdgeReferences(int from_vertex,
-                                                               int to_vertex) {
-  auto &edge = _adjacency_list[from_vertex].back();
-  edge.reverse_edge_index = _adjacency_list[to_vertex].size() - 1;
-  int symmetric_from_vertex = _mapper.complement(to_vertex);
-  edge.symmetric_edge_index = _adjacency_list[symmetric_from_vertex].size() - 1;
-}
-
 // Each term in posiform produces four edges in implication network
 // the reverse edges and the symmetric edges.
 template <class capacity_t>
@@ -381,20 +373,34 @@ void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
     int from_vertex, int to_vertex, capacity_t capacity) {
   int from_vertex_complement = _mapper.complement(from_vertex);
   int to_vertex_complement = _mapper.complement(to_vertex);
-  _adjacency_list[from_vertex].emplace_back(
-      ImplicationEdge<capacity_t>(from_vertex, to_vertex, capacity, 0));
-  _adjacency_list[to_vertex].emplace_back(
-      ImplicationEdge<capacity_t>(to_vertex, from_vertex, 0, capacity));
+  int from_vertex_edge_index = _adjacency_list[from_vertex].size();
+  int to_vertex_edge_index = _adjacency_list[to_vertex].size();
+  int from_vertex_complement_edge_index =
+      _adjacency_list[from_vertex_complement].size();
+  int to_vertex_complement_edge_index =
+      _adjacency_list[to_vertex_complement].size();
+
+  // edge
+  _adjacency_list[from_vertex].emplace_back(ImplicationEdge<capacity_t>(
+      from_vertex, to_vertex, capacity, 0, to_vertex_edge_index,
+      to_vertex_complement_edge_index));
+
+  // reverse edge
+  _adjacency_list[to_vertex].emplace_back(ImplicationEdge<capacity_t>(
+      to_vertex, from_vertex, 0, capacity, from_vertex_edge_index,
+      from_vertex_complement_edge_index));
+
+  // symmetric edge
   _adjacency_list[to_vertex_complement].emplace_back(
-      ImplicationEdge<capacity_t>(to_vertex_complement, from_vertex_complement,
-                                  capacity, 0));
+      ImplicationEdge<capacity_t>(
+          to_vertex_complement, from_vertex_complement, capacity, 0,
+          from_vertex_complement_edge_index, from_vertex_edge_index));
+
+  // reverse symmetric edge
   _adjacency_list[from_vertex_complement].emplace_back(
       ImplicationEdge<capacity_t>(from_vertex_complement, to_vertex_complement,
-                                  0, capacity));
-  fillLastOutEdgeReferences(from_vertex, to_vertex);
-  fillLastOutEdgeReferences(to_vertex, from_vertex);
-  fillLastOutEdgeReferences(to_vertex_complement, from_vertex_complement);
-  fillLastOutEdgeReferences(from_vertex_complement, to_vertex_complement);
+                                  0, capacity, to_vertex_complement_edge_index,
+                                  to_vertex_edge_index));
 }
 
 template <class capacity_t>
@@ -461,16 +467,18 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   push_relabel_solver.computeMaximumFlow(false);
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
-  
+
   auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << res.first << " is valid ? " << res.second << std::endl;
+  std::cout << "Flow " << res.first << " is valid ? " << res.second
+            << std::endl;
 
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
- 
+
   auto res2 = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << res2.first << " is valid ? " << res2.second << std::endl;
+  std::cout << "Flow " << res2.first << " is valid ? " << res2.second
+            << std::endl;
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
@@ -607,7 +615,8 @@ void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
          "Maximum flow is not valid.");
 
   auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout <<"Flow " << res.first << " is valid ? " << res.second << std::endl;
+  std::cout << "Flow " << res.first << " is valid ? " << res.second
+            << std::endl;
 
   std::vector<int> bfs_depth_values;
   int UNVISITED = breadthFirstSearchResidual(_adjacency_list, _source,
