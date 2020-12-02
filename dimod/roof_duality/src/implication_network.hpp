@@ -530,9 +530,17 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
+  auto res = isMaximumFlow(_adjacency_list, _source, _sink);
+  std::cout << "Flow " << res.first << " is valid ? " << res.second
+            << std::endl;
+
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
+
+  res = isMaximumFlow(_adjacency_list, _source, _sink);
+  std::cout << "Symmetric Flow " << res.first << " is valid ? " << res.second
+            << std::endl;
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
