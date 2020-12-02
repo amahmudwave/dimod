@@ -105,6 +105,15 @@ public:
   void scaleCapacity(int scale) { _encoded_capacity *= scale; }
 };
 
+// Needed for binary search when edges are in sorted order.
+class ImplicationEdgeComparator {
+public:
+  template <class capacity_t>
+  bool operator()(const ImplicationEdge<capacity_t> &a, const int &vertex) {
+    return a.to_vertex < vertex;
+  }
+};
+
 // Structure for holding various information regarding strongly connected
 // components of a implication network.
 class stronglyConnectedComponentsInfo {
@@ -357,28 +366,36 @@ void ImplicationNetwork<capacity_t>::createImplicationNetworkEdges(
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::makeResidualSymmetric() {
   checkAdjacencyListValidity();
+  // If the edges are sorted even if we create edges to/from vertices
+  // corresponding to variables and their complements.
+  bool edges_sorted = _mapper.complement_maintains_order();
 #pragma omp parallel for
   for (int vertex = 0; vertex < _num_vertices; vertex++) {
     int from_vertex_base = _mapper.non_complemented_vertex(vertex);
-    auto eit = _adjacency_list[vertex].begin();
+    auto eit = edges_sorted ? std::lower_bound(_adjacency_list[vertex].begin(),
+                                               _adjacency_list[vertex].end(),
+                                               from_vertex_base,
+                                               ImplicationEdgeComparator())
+                            : _adjacency_list[vertex].begin();
     auto eit_end = _adjacency_list[vertex].end();
     for (; eit != eit_end; eit++) {
       int to_vertex = eit->to_vertex;
       int to_vertex_complement = _mapper.complement(to_vertex);
       int to_vertex_base = _mapper.non_complemented_vertex(to_vertex);
-      // We don not want to process the symmetric edges twice, we pick the one
-      // that starts from the smaller vertex number when complementation is not
-      // taken into account.
+      // We don not want to process the symmetric edges twice, we pick
+      // the one that starts from the smaller vertex number when
+      // complementation is not taken into account.
       if (to_vertex_base > from_vertex_base) {
         auto symmetric_eit = _adjacency_list[to_vertex_complement].begin() +
                              eit->symmetric_edge_index;
         capacity_t edge_residual = eit->residual;
         capacity_t symmetric_edge_residual = symmetric_eit->residual;
-        // The paper states that we should average the residuals and assign the
-        // average, but to avoid underflow we do not divide by two but to keep
-        // the flow valid we multiply the capacities by 2. The doubling of
-        // capacity is not needed for the later steps in the algorithm, but will
-        // help us verify if the symmetric flow is a valid flow or not.
+        // The paper states that we should average the residuals and
+        // assign the average, but to avoid underflow we do not divide
+        // by two but to keep the flow valid we multiply the
+        // capacities by 2. The doubling of capacity is not needed for
+        // the later steps in the algorithm, but will help us verify
+        // if the symmetric flow is a valid flow or not.
         capacity_t residual_sum = edge_residual + symmetric_edge_residual;
         eit->residual = residual_sum;
         eit->scaleCapacity(2);
@@ -501,17 +518,9 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
-  auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout << "Flow " << res.first << " is valid ? " << res.second
-            << std::endl;
-
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
-
-  auto res2 = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout << "Flow " << res2.first << " is valid ? " << res2.second
-            << std::endl;
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
@@ -536,9 +545,7 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   int UNVISITED = breadthFirstSearch(
       adjacency_list_components, scc_info.source_component, bfs_depth_values);
 
-  auto &components = scc_info.components;
   auto &complement_map = scc_info.complement_map;
-
   fixed_variables.reserve(_num_variables);
   vector_based_queue<int> component_queue(num_components);
   std::vector<int> out_degrees(num_components, -1);
