@@ -317,7 +317,7 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
     }
   }
 
-  // We sperate out the creation of edges with source and sink, as if the
+  // We separate out the creation of edges with source and sink, as if the
   // mapping of variables to vertices is ordered such that if variable x <
   // variable y, then vertices corresponding to x and x' both will be less than
   // vertices y and y' then we can keep the order of edges sorted by mapping
