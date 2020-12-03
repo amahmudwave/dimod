@@ -132,8 +132,8 @@ private:
 
 template <class BQM, class coefficient_t>
 PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
-  assert(std::is_integral(coefficient_type) &&
-         std::is_signed(coefficient_type) &&
+  assert(std::is_integral<coefficient_type>::value &&
+         std::is_signed<coefficient_type>::value &&
          "Posiform must have signed, integral type coefficients");
   _constant_posiform = 0;
   _max_absolute_value = 0;
@@ -208,9 +208,7 @@ PosiformInfo<BQM, coefficient_t>::PosiformInfo(const BQM &bqm) {
   // by 2 introduced overflow, thus we divide by a number larger than 2.
   // TODO : Find the theoretical optimal number for division, for now we divide
   // by 4 to be safe.
-  _bias_conversion_ratio /= 4; // static_cast<double>(1LL << 10);
-                               // if (_bias_conversion_ratio < 1)
-                               //   _bias_conversion_ratio = 1;
+  _bias_conversion_ratio /= 4;
 
   for (int bqm_variable = 0; bqm_variable < _num_bqm_variables;
        bqm_variable++) {

@@ -143,7 +143,7 @@ public:
     complement_map.resize(num_components);
 
     for (int component = 0; component < num_components; component++) {
-      assert(compnents[component].size() &&
+      assert(components[component].size() &&
              "Each strongly connected component must have one element.");
       // According to the paper each strongly connected component of the
       // residual graph should have either a set of vertices and its complements
@@ -257,10 +257,10 @@ private:
 template <class capacity_t>
 template <class PosiformInfo>
 ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
-  assert(std::is_integral(capacity_t) && std::is_signed(capacity_t) &&
+  assert(std::is_integral<capacity_t>::value && std::is_signed<capacity_t>::value &&
          "Implication Network must have signed, integral type coefficients");
   assert((std::numeric_limits<capacity_t>::max() >=
-          std::numeric_limits<Posiform::coefficient_type> max()) &&
+          std::numeric_limits<typename PosiformInfo::coefficient_type>::max()) &&
          "Implication Network must have capacity type with larger maximum "
          "value than the type of coefficients in source posiform.");
   _num_variables = posiform.getNumVariables();
@@ -315,7 +315,7 @@ ImplicationNetwork<capacity_t>::ImplicationNetwork(PosiformInfo &posiform) {
     }
   }
 
-  // We speraate out the creation of edges with source and sink, as if the
+  // We sperate out the creation of edges with source and sink, as if the
   // mapping of variables to vertices is ordered such that if variable x <
   // variable y, then vertices corresponding to x and x' both will be less than
   // vertices y and y' then we can keep the order of edges sorted by mapping
@@ -530,17 +530,9 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
-  auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout << "Flow " << res.first << " is valid ? " << res.second
-            << std::endl;
-
   makeResidualSymmetric();
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
-
-  res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout << "Symmetric Flow " << res.first << " is valid ? " << res.second
-            << std::endl;
 
   std::vector<std::vector<int>> adjacency_list_residual;
   extractResidualNetworkWithoutSourceInSinkOut(adjacency_list_residual, true);
@@ -607,18 +599,12 @@ template <class capacity_t>
 void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
     std::vector<std::pair<int, int>> &fixed_variables) {
 
-  // Max flow.
   PushRelabelSolver<ImplicationEdge<capacity_t>> push_relabel_solver(
       _adjacency_list, _source, _sink);
   push_relabel_solver.computeMaximumFlow(false);
   assert(isMaximumFlow(_adjacency_list, _source, _sink).second &&
          "Maximum flow is not valid.");
 
-  auto res = isMaximumFlow(_adjacency_list, _source, _sink);
-  std::cout << "Flow " << res.first << " is valid ? " << res.second
-            << std::endl;
-
-  // Find vertices reachable from the source.
   std::vector<int> bfs_depth_values;
   int UNVISITED = breadthFirstSearchResidual(_adjacency_list, _source,
                                              bfs_depth_values, false, false);
