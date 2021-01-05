@@ -54,7 +54,7 @@ public:
     std::cout << from_vertex << " --> " << to_vertex << std::endl;
     std::cout << "Capacity : " << getCapacity() << std::endl;
     std::cout << "Residual : " << residual << std::endl;
-    std::cout << "Reverse Edge Capaciy : " << getReverseEdgeCapacity()
+    std::cout << "Reverse Edge Capacity : " << getReverseEdgeCapacity()
               << std::endl;
     std::cout << "Reverse Edge Residual : " << getReverseEdgeResidual()
               << std::endl;
@@ -244,7 +244,6 @@ private:
   void createImplicationNetworkEdges(int from_vertex, int to_vertex,
                                      capacity_t capacity);
 
-private:
   int _num_variables;
   int _num_vertices;
   int _source;
@@ -470,7 +469,7 @@ void ImplicationNetwork<capacity_t>::
   }
 }
 
-// Fix only variables relevant to a strongly connected component..
+// Fix only variables relevant to a strongly connected component.
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::fixStronglyConnectedComponentVariables(
     int component, stronglyConnectedComponentsInfo &scc_info,
@@ -522,6 +521,24 @@ void ImplicationNetwork<capacity_t>::fixStronglyConnectedComponentVariables(
   }
 }
 
+// Fix both strong and weak pesistencies. This implementation is a bit different
+// from the implementation mentioned in the paper : Boros, Endre & Hammer, Peter
+// & Tavares, Gabriel. (2006). Preprocessing of unconstrained quadratic binary
+// optimization. RUTCOR Research Report. Here after making the residual network
+// symmetric and extracting the residual network, we specifically remove the
+// edges going into the source and the ones coming out of the sink, this way
+// when we generate the graph of strongly connected components, the source and
+// sink will belong to different strongly connected components of their own,
+// where they will be the sole members. Thus a breadth first search from the
+// source will still find the strong persistencies and fix the variables that
+// the algorithm from the above mentioned paper was supposed to find, since they
+// will be in different components from the source now. We ignore fixing the
+// component where the source is, that component should have only source as its
+// member. Whenever we fix a component we reduce the outdegree of components
+// which had edges into the component just fixed. Whenever a component has zero
+// outdegree and is of not self complementing type, that is vertices and their
+// complements both do not exist in the same component, it becomes a candidate
+// for the fixing process.
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
     std::vector<std::pair<int, int>> &fixed_variables) {
@@ -599,7 +616,11 @@ void ImplicationNetwork<capacity_t>::fixStrongAndWeakVariables(
   }
 }
 
-// Fix only the strong variables which can be trivially found.
+// Fix only the strong variables which can be trivially found. That is fix the
+// variables which can be reached from the source in the residual graph. This is
+// a subset or say the initial part of the algorithm mentioned in the paper :
+// Boros, Endre & Hammer, Peter & Tavares, Gabriel. (2006). Preprocessing of
+// unconstrained quadratic binary optimization. RUTCOR Research Report.
 template <class capacity_t>
 void ImplicationNetwork<capacity_t>::fixTriviallyStrongVariables(
     std::vector<std::pair<int, int>> &fixed_variables) {
