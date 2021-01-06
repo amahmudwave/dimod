@@ -56,6 +56,7 @@
 #include <iostream>
 using namespace std;
 
+typedef long long int capacity_type;
 namespace
 {
 
@@ -428,7 +429,7 @@ compressed_matrix::CompressedMatrix<long long int> maxFlow(const compressed_matr
 	//curr_1 = curr_2;
 
    	long long int flowValueBoost = push_relabel_max_flow(g, s, t);
-	std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
+	//std::cout <<"Flow Value from Boost : " << flowValueBoost << std::endl;
 
 	curr_2 = clock();
 //	printf("inside maxFlow int version: Time elapsed_for_boost_max_flow: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
@@ -1212,7 +1213,7 @@ struct FixVariablesResult
 FixVariablesResult fixQuboVariables(const compressed_matrix::CompressedMatrix<double>& Q, int method)
 {
 	static int di=0;
-        printf("Starting function %d  ******\n", ++di);
+        //printf("Starting function %d  ******\n", ++di);
 
 	//Q needs to be a square matrix
 	if (Q.numRows() != Q.numCols())
@@ -1374,14 +1375,63 @@ std::vector<std::pair<int,  int> > fixQuboVariablesMap(std::map<std::pair<int, i
     return ret.fixedVars;
 }
 
-template<class V, class B>
-std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm, int method)
-{
-      int numVars = bqm.num_variables();
+// Fixes the QUBO variables.
+// When sample is set to true, it fixes only the variables which correspond to
+// strong persistencies. When sample is set to false, it tries to fix all the
+// variables corresponding to strong and weak persistencies. The variables which
+// do not contribute any coefficient to the posiform, either because their bias
+// in the QUBO/BQM is zero or they are flushed to zeroes when converted to the
+// posiform are set to 1 when sample is set to false.
+template <class PosiformInfo>
+void fixQuboVariables(PosiformInfo &posiform_info, int num_bqm_variables,
+                      bool sample,
+                      std::vector<std::pair<int, int>> &fixed_variables) {
+  ImplicationNetwork<capacity_type> implication_network(posiform_info);
+  fixed_variables.reserve(num_bqm_variables);
 
-      // Temporary code to maintain compatibility with legacy code
+  // Fix the variables with respect to the posiform.
+  std::vector<std::pair<int, int>> fixed_variables_posiform;
+  implication_network.fixVariables(fixed_variables_posiform, sample);
+
+  // There may not be 1 to 1 mapping from bqm variables to posiform variables,
+  // so we convert the posiform variables back to bqm variables.
+  for (int i = 0; i < fixed_variables_posiform.size(); i++) {
+    int bqm_variable = posiform_info.mapVariablePosiformToQubo(
+        fixed_variables_posiform[i].first);
+    fixed_variables.push_back(
+        {bqm_variable, fixed_variables_posiform[i].second});
+  }
+
+  // When we are not sampling we want to set the variables which did not
+  // contribute to the posiform as they had zero bias. They can be set to either
+  // 1 or 0. We choose 1.
+  if (!sample) {
+    for (int bqm_variable = 0; bqm_variable < num_bqm_variables;
+         bqm_variable++) {
+      if (posiform_info.mapVariableQuboToPosiform(bqm_variable) < 0) {
+        fixed_variables.push_back({bqm_variable, 1});
+      }
+    }
+  }
+
+  std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
+}
+
+// Fix variables for different types of BQMs.
+
+template <class V, class B>
+std::vector<std::pair<int, int>>
+fixQuboVariables(dimod::AdjVectorBQM<V, B> &bqm, int method) {
+  bool sample = (method == 2) ? true : false;
+  int num_bqm_variables = bqm.num_variables();
+  PosiformInfo<dimod::AdjVectorBQM<V, B>, capacity_type> posiform_info(bqm);
+  std::vector<std::pair<int, int>> fixed_variables;
+  fixQuboVariables(posiform_info, num_bqm_variables, sample, fixed_variables);
+
+  /*
+   // Temporary code to maintain compatibility with legacy code
       std::map<std::pair<int, int>, double> QMap;
-      for(int i = 0; i < numVars; i++){
+      for(int i = 0; i < num_bqm_variables; i++){
 	auto span = bqm.neighborhood(i);
 	auto linear = bqm.linear(i);
         QMap[{i,i}] = linear;
@@ -1392,40 +1442,8 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
 	  }
 	}
       }
-
-     clock_t curr_1 = clock();
-     clock_t curr_2;
-
-     PosiformInfo<dimod::AdjVectorBQM<V,B>, long long int> pi(bqm);
-
-     ImplicationNetwork<long long int> implNet(pi);
-     bool sample = (method == 2) ? true : false;
-     std::vector<std::pair<int, int>> fixed_variables_posiform;
-     std::vector<std::pair<int, int>> fixed_variables;
-     fixed_variables.reserve(numVars);
-     implNet.fixVariables(fixed_variables_posiform, sample);
-
-     for(int i = 0; i < fixed_variables_posiform.size(); i++) {
-        int bqm_variable = pi.mapVariablePosiformToQubo(fixed_variables_posiform[i].first);
-        fixed_variables.push_back({ bqm_variable ,  fixed_variables_posiform[i].second });
-     }
-     
-     if(!sample) { 
-     for(int bqm_variable = 0; bqm_variable < numVars; bqm_variable++) {
-        if(pi.mapVariableQuboToPosiform(bqm_variable) < 0) {
-            fixed_variables.push_back({ bqm_variable , 1 });
-        }
-     }
-     }
-
-     std::sort(fixed_variables.begin(), fixed_variables.end(), compClass());
-
-     
-     curr_2 = clock();
-     printf("Time new Method: %f\n", ((double)curr_2 - curr_1) / CLOCKS_PER_SEC);
-     std::cout <<"Method used " << method <<std::endl; 
-     
-     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, numVars, method); 
+    
+     std::vector<std::pair<int, int>> fixed_variables_old =  fixQuboVariablesMap(QMap, num_bqm_variables, method); 
      std::cout << "Comparing old and new methods " << std::endl; 
     
      bool mismatch = false;
@@ -1456,10 +1474,10 @@ std::vector<std::pair<int,  int>> fixQuboVariables(dimod::AdjVectorBQM<V,B>& bqm
          }
 
      }
-     
-     return fixed_variables;
+  */  
+   
+  return fixed_variables;
 }
-
 } // namespace fix_variables_
 
 #endif // FIX_VARIABLES_HPP_INCLUDED numVars
