@@ -64,5 +64,9 @@ def fix_variables_wrapper(bqm, method):
     t1 = time.perf_counter()
     cdef cyAdjVectorBQM cvbqm = bqm
     fixed_2 = fixQuboVariables[VarIndex, Bias](cvbqm.bqm_, int(method));
-    print("Time taken by old method ", t1 -t0 )
+    t2 = time.perf_counter()
+    print("Using method ", method)
+    print("Time taken by old roof duality ", t1 -t0 )
+    print("Time taken by new roof duality ", t2 -t1 )
+    print("Speedup ", (t1 -t0)/(t2 - t1))
     return {int(v - 1): int(val) for v, val in fixed}
